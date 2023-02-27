@@ -4,10 +4,10 @@ from typing import List, Optional, Union
 from tqdm import tqdm
 
 from pypaq.lipytools.pylogger import get_pylogger
-from pypaq.torchness.types import TNS, DTNS, INI
-from pypaq.torchness.motorch import Module, MOTorch
-from pypaq.torchness.models.text_embbeder import TextEMB
-from pypaq.torchness.models.simple_feats_classifier import SFeatsCSF
+from torchness.types import TNS, DTNS, INI
+from torchness.motorch import Module, MOTorch
+from torchness.models.text_embbeder import TextEMB
+from torchness.models.simple_feats_classifier import SFeatsCSF
 
 
 

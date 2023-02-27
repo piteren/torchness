@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from pypaq.torchness.comoneural.batcher import Batcher, BATCHING_TYPES
+from torchness.comoneural.batcher import Batcher, BATCHING_TYPES
 from pypaq.lipytools.stats import msmx
 
 

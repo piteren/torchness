@@ -1,9 +1,9 @@
 from typing import Optional, Tuple, Union
 import torch
 
-from pypaq.torchness.types import ACT, INI, TNS, DTNS
-from pypaq.torchness.base_elements import bert_initializer, my_initializer, TorchnessException
-from pypaq.torchness.layers import LayDense, TF_Dropout, LayConv1D, LayRES, zeroes
+from torchness.types import ACT, INI, TNS, DTNS
+from torchness.base_elements import bert_initializer, my_initializer, TorchnessException
+from torchness.layers import LayDense, TF_Dropout, LayConv1D, LayRES, zeroes
 
 
 # Block (Layer) of EncDRT (LN > Dense or two_with_drop_in_between > drop > RES with drop)

@@ -1,7 +1,7 @@
 import torch
 import unittest
 
-from pypaq.torchness.layers import LayDense, TF_Dropout, LayConv1D, PositionalEncoding, zeroes
+from torchness.layers import LayDense, TF_Dropout, LayConv1D, PositionalEncoding, zeroes
 
 
 class TestLayers(unittest.TestCase):

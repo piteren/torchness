@@ -4,8 +4,8 @@ import unittest
 
 from tests.envy import flush_tmp_dir
 
-from pypaq.torchness.comoneural.zeroes_processor import ZeroesProcessor
-from pypaq.torchness.tbwr import TBwr
+from torchness.comoneural.zeroes_processor import ZeroesProcessor
+from torchness.tbwr import TBwr
 
 BASE_DIR = f'{flush_tmp_dir()}/torchness/comoneural'
 

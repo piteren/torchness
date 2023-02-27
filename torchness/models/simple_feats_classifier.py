@@ -2,10 +2,10 @@ import torch
 from typing import List, Optional
 
 from pypaq.lipytools.pylogger import get_pylogger
-from pypaq.torchness.motorch import Module
-from pypaq.torchness.types import TNS, DTNS, INI
-from pypaq.torchness.base_elements import my_initializer
-from pypaq.torchness.layers import LayDense
+from torchness.motorch import Module
+from torchness.types import TNS, DTNS, INI
+from torchness.base_elements import my_initializer
+from torchness.layers import LayDense
 
 
 # Simple Feats Classification Module

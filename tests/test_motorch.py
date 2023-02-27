@@ -3,8 +3,8 @@ import torch
 from torch import nn
 import unittest
 
-from pypaq.torchness.motorch import MOTorch, Module, MOTorchException
-from pypaq.torchness.layers import LayDense
+from torchness.motorch import MOTorch, Module, MOTorchException
+from torchness.layers import LayDense
 
 from tests.envy import flush_tmp_dir
 

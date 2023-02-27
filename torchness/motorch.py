@@ -47,12 +47,12 @@ from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_params, point_trim
 from pypaq.pms.parasave import ParaSave
 from pypaq.mpython.devices import get_devices
-from pypaq.torchness.comoneural.batcher import Batcher
-from pypaq.torchness.types import TNS, DTNS
-from pypaq.torchness.base_elements import mrg_ckpts
-from pypaq.torchness.scaled_LR import ScaledLR
-from pypaq.torchness.grad_clipping import GradClipperAVT
-from pypaq.torchness.tbwr import TBwr
+from torchness.comoneural.batcher import Batcher
+from torchness.types import TNS, DTNS
+from torchness.base_elements import mrg_ckpts
+from torchness.scaled_LR import ScaledLR
+from torchness.grad_clipping import GradClipperAVT
+from torchness.tbwr import TBwr
 
 
 
@@ -133,13 +133,13 @@ class MOTorch(ParaSave, torch.nn.Module):
         'n_batches':        1000,               # default length of training
         'opt_class':        torch.optim.Adam,   # default optimizer
         'train_step':       0,                  # default (starting) train step, updated while backward()
-            # LR management (check pypaq.torchness.base_elements.ScaledLR)
+            # LR management (check torchness.base_elements.ScaledLR)
         'baseLR':           3e-4,
         'warm_up':          None,
         'ann_base':         None,
         'ann_step':         1.0,
         'n_wup_off':        2.0,
-            # gradients clipping parameters (check pypaq.torchness.base_elements.GradClipperAVT)
+            # gradients clipping parameters (check torchness.base_elements.GradClipperAVT)
         'clip_value':       None,
         'avt_SVal':         0.1,
         'avt_window':       100,

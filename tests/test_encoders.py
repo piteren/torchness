@@ -1,8 +1,8 @@
 import torch
 import unittest
 
-from pypaq.torchness.base_elements import TorchnessException
-from pypaq.torchness.encoders import LayBlockDRT, EncDRT, LayBlockCNN, EncCNN, LayBlockTNS, EncTNS
+from torchness.base_elements import TorchnessException
+from torchness.encoders import LayBlockDRT, EncDRT, LayBlockCNN, EncCNN, LayBlockTNS, EncTNS
 
 
 class TestEncoders(unittest.TestCase):

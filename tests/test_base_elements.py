@@ -1,7 +1,7 @@
 import torch
 import unittest
 
-from pypaq.torchness.base_elements import my_initializer
+from torchness.base_elements import my_initializer
 
 
 class TestBaseElements(unittest.TestCase):

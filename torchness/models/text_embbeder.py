@@ -11,7 +11,7 @@ from tqdm import tqdm
 import torch
 from sentence_transformers import SentenceTransformer
 
-from pypaq.torchness.motorch import MOTorch
+from torchness.motorch import MOTorch
 
 
 # Text Embedding Module, based on Sentence-Transformer

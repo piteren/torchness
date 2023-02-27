@@ -1,7 +1,7 @@
 import torch
 import unittest
 
-from pypaq.torchness.tbwr import TBwr
+from torchness.tbwr import TBwr
 
 from tests.envy import flush_tmp_dir
 

@@ -3,9 +3,9 @@ import numpy as np
 import torch
 from typing import Optional
 
-from pypaq.torchness.base_elements import TorchnessException
-from pypaq.torchness.types import ACT, INI, TNS
-from pypaq.torchness.base_elements import my_initializer
+from torchness.base_elements import TorchnessException
+from torchness.types import ACT, INI, TNS
+from torchness.base_elements import my_initializer
 
 
 # my dense layer, linear with initializer + activation
