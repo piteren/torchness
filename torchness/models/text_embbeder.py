@@ -1,20 +1,14 @@
-"""
-    Text Embedding Model
-        - prepares embedding for given text (str)
-"""
-
 import math
 import numpy as np
+from sentence_transformers import SentenceTransformer
+import torch
 from typing import List, Union
 from tqdm import tqdm
-
-import torch
-from sentence_transformers import SentenceTransformer
 
 from torchness.motorch import MOTorch
 
 
-# Text Embedding Module, based on Sentence-Transformer
+# Text Embedding Module, based on Sentence-Transformer, prepares embedding for given text (str)
 class TextEMB(torch.nn.Module):
 
     def __init__(

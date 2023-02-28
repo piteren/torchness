@@ -1,7 +1,7 @@
+from pypaq.lipytools.pylogger import get_pylogger
 import torch
 from typing import List, Optional
 
-from pypaq.lipytools.pylogger import get_pylogger
 from torchness.motorch import Module
 from torchness.types import TNS, DTNS, INI
 from torchness.base_elements import my_initializer

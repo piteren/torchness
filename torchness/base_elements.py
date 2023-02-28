@@ -1,8 +1,8 @@
 from collections import OrderedDict
+from pypaq.mpython.mpdecor import proc_wait
 import torch
 from typing import Optional
 
-from pypaq.mpython.mpdecor import proc_wait
 
 
 class TorchnessException(Exception):
@@ -11,6 +11,7 @@ class TorchnessException(Exception):
 # weights initializer from BERT, the only difference is that in torch values are CLAMPED not SAMPLED till in <a,b>
 def bert_initializer(*args, std=0.02, **kwargs):
     return torch.nn.init.trunc_normal_(*args, **kwargs, std=std, a=-2*std, b=2*std)
+
 
 def my_initializer(*args, std=0.02, **kwargs):
     # different layers use different initialization functions:

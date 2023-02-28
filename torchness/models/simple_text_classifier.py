@@ -1,9 +1,9 @@
 import math
 import numpy as np
+from pypaq.lipytools.pylogger import get_pylogger
 from typing import List, Optional, Union
 from tqdm import tqdm
 
-from pypaq.lipytools.pylogger import get_pylogger
 from torchness.types import TNS, DTNS, INI
 from torchness.motorch import Module, MOTorch
 from torchness.models.text_embbeder import TextEMB

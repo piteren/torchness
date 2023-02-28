@@ -1,9 +1,5 @@
 """
-    2022 (c) piteren
-
     MOTorch wraps PyTorch neural network (Module) and adds some features.
-
-    MOTorch:
     - Builds given Module.
     - Manages one MOTorch folder (subfolder of SAVE_TOPDIR named with MOTorch name)
       for all MOTorch data (logs, params, checkpoints). MOTorch supports
@@ -172,9 +168,9 @@ class MOTorch(ParaSave, torch.nn.Module):
 
         # TODO: temporary, delete later
         if 'devices' in kwargs:
-            raise MOTorchException('\'devices\' param is no more supported by MOTorch, please use device')
+            raise MOTorchException('\'devices\' param is no more supported by MOTorch, please use \'device\'')
 
-        self.module_type = module_type # INFO: here we save TYPE
+        self.module_type = module_type
 
         # generate name
         name = f'{self.module_type.__name__}_MOTorch' if not name else name

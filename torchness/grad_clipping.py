@@ -1,8 +1,6 @@
-from typing import Optional
-
-import torch
-
 from pypaq.lipytools.pylogger import get_pylogger
+import torch
+from typing import Optional
 
 
 # copied & refactored from torch.nn.utils.clip_grad.py, used by GradClipperAVT

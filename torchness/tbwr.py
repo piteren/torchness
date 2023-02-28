@@ -1,5 +1,6 @@
-from typing import Optional
 from torch.utils.tensorboard import SummaryWriter
+from typing import Optional
+
 
 
 # TensorBoard writer based on PyTorch wraps of TensorBoard

@@ -1,5 +1,5 @@
-from typing import Optional, Tuple, Union
 import torch
+from typing import Optional, Tuple, Union
 
 from torchness.types import ACT, INI, TNS, DTNS
 from torchness.base_elements import bert_initializer, my_initializer, TorchnessException

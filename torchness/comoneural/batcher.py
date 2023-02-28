@@ -1,19 +1,6 @@
-"""
-
- 2020 (c) piteren
-
-    NN Batcher
-        takes data and prepares batches
-        data for training, validation or testing is a dict: {key: np.ndarray or torch.tensor}
-        batch is prepared from each key
-
-"""
-
 import numpy as np
-from typing import Dict, Optional, Tuple, List
-
 from pypaq.lipytools.pylogger import get_pylogger
-
+from typing import Dict, Optional, Tuple, List
 
 BATCHING_TYPES = [
     'base',         # prepares batches in order of given data
@@ -21,11 +8,18 @@ BATCHING_TYPES = [
     'random_cov']   # random sampling with full coverage of data
 
 
+
 class BatcherException(Exception):
     pass
 
 
 class Batcher:
+    """
+    Batcher
+        takes data and prepares batches
+        data for training, validation or testing is a dict: {key: np.ndarray or torch.tensor}
+        batch is prepared from each key
+    """
 
     def __init__(
             self,

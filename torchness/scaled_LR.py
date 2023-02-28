@@ -1,9 +1,8 @@
+import numpy as np
+from pypaq.lipytools.pylogger import get_pylogger
+import torch
 from typing import Optional
 
-import numpy as np
-import torch
-
-from pypaq.lipytools.pylogger import get_pylogger
 
 
 # applies warm-up at the beginning (for warm_up steps) and annealing after some steps (after warm_up * n_wup_off), should be called every step

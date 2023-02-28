@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # computes average of max and min probabilities for given array (batch) of probabilities
 def avg_probs(probs: np.ndarray) -> dict:
     probs = np.reshape(probs, (-1,probs.shape[-1]))
