@@ -50,4 +50,5 @@ class TBwr:
             bins=           "tensorflow")
 
     def flush(self):
-        self.sw.flush()
+        if self.sw:
+            self.sw.flush()
