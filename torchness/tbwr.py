@@ -49,4 +49,5 @@ class TBwr:
             global_step=    step,
             bins=           "tensorflow")
 
-    def flush(self): self.sw.flush()
+    def flush(self):
+        self.sw.flush()
