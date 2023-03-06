@@ -65,6 +65,8 @@ class TestMOTorch(unittest.TestCase):
 
 
     def test_device(self):
+
+        # force GPU
         model = MOTorch(
             module_type=    LinModel,
             device=         0,
@@ -72,6 +74,15 @@ class TestMOTorch(unittest.TestCase):
         dev = model.device
         print(dev)
         self.assertTrue(dev == 'cuda:0' if torch.cuda.is_available() else 'cpu')
+
+        # GPU or CPU
+        model = MOTorch(
+            module_type=    LinModel,
+            device=         -1,
+            in_drop=        0.0)
+        dev = model.device
+        print(dev)
+        self.assertTrue('cuda' in dev or 'cpu' in dev)
 
 
     def test_save_load(self):

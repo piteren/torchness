@@ -245,10 +245,14 @@ class MOTorch(ParaSave, torch.nn.Module):
         # INFO: device is a special parameter, MOTorch allows it to be in DevicesPypaq type - it needs to be casted to torch namespace
         self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
         self._log.debug(f'>> torch.cuda.is_available(): {torch.cuda.is_available()}')
-        device = get_devices(
+        devices = get_devices(
             devices=            self._point["device"],
             torch_namespace=    True,
-            logger=             get_child(self._log, 'get_devices'))[0]
+            logger=             get_child(self._log, 'get_devices'))
+        if not devices:
+            self._log.warning(f'given device: {self._point["device"]} is not available, using CPU')
+            devices = ['cpu']
+        device = devices[0]
         self._log.info(f'> {self.name} given devices: {self._point["device"]}, will use: {device}')
 
         self._point.update({
