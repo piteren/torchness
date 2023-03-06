@@ -42,13 +42,15 @@ def mrg_ckpts(
     cmsd_B = checkpoint_B['model_state_dict']
     cmsd_M = OrderedDict()
 
-    # TODO: watch out for not-float-tensors -> such should be taken from A without a mix
     for k in cmsd_A:
-        std_dev = float(torch.std(cmsd_A[k]))
-        noise_tensor = torch.zeros_like(cmsd_A[k])
-        if std_dev != 0.0: # bias variable case
-            my_initializer(noise_tensor, std=std_dev)
-        cmsd_M[k] = ratio * cmsd_A[k] + (1 - ratio) * cmsd_B[k] + noise * noise_tensor
+        if cmsd_A[k].is_floating_point():
+            std_dev = float(torch.std(cmsd_A[k]))
+            noise_tensor = torch.zeros_like(cmsd_A[k])
+            if std_dev != 0.0: # bias variable case
+                my_initializer(noise_tensor, std=std_dev)
+            cmsd_M[k] = ratio * cmsd_A[k] + (1 - ratio) * cmsd_B[k] + noise * noise_tensor
+        else:
+            cmsd_M[k] = cmsd_A[k]
 
     checkpoint_M = {}
     checkpoint_M.update(checkpoint_A)

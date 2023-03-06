@@ -598,7 +598,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             ratio: float=                           0.5,
             noise: float=                           0.03,
             logger=                                 None,
-            loglevel=                               20,
+            loglevel=                               30,
     ) -> None:
 
         if not save_topdir_parent_main: save_topdir_parent_main = cls.SAVE_TOPDIR
