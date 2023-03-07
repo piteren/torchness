@@ -47,7 +47,7 @@ from torchness.comoneural.batcher import Batcher
 from torchness.types import TNS, DTNS
 from torchness.base_elements import mrg_ckpts
 from torchness.scaled_LR import ScaledLR
-from torchness.grad_clipping import GradClipperAVT
+from torchness.grad_clipping import GradClipperAVT, GradClipperMAVG
 from torchness.tbwr import TBwr
 
 
@@ -308,7 +308,7 @@ class MOTorch(ParaSave, torch.nn.Module):
         self._module = self.module_type(**self._point_module) # private not to be saved with point
 
         if self.try_load_ckpt:
-            self.load_ckpt() # TODO do we want to do sth with returned additional data?
+            self.load_ckpt()
         else:
             self._log.info(f'> {self.name} checkpoint not loaded, not even tried because \'try_load_ckpt\' was set to {self.try_load_ckpt}')
 
@@ -346,6 +346,12 @@ class MOTorch(ParaSave, torch.nn.Module):
             avt_max_upd=    self.avt_max_upd,
             do_clip=        self.do_clip,
             logger=         get_child(self._log, 'GradClipperAVT'))
+        """
+        self._grad_clipper = GradClipperMAVG(
+            module=         self,
+            factor=         self.gc_factor,
+            do_clip=        self.do_clip)
+        """
 
         # MOTorch by default is not in training mode
         self.train(False)

@@ -1,4 +1,5 @@
 from pypaq.lipytools.pylogger import get_pylogger
+from pypaq.lipytools.moving_average import MovAvg
 import torch
 from typing import Optional
 
@@ -8,7 +9,7 @@ def clip_grad_norm_(
         parameters,
         max_norm: float,
         norm_type: float=   2.0,
-        do_clip: bool=      True    # disables clipping (just GN calculations)
+        do_clip: bool=      True, # disables clipping (just GN calculations)
 ) -> float:
 
     if isinstance(parameters, torch.Tensor): parameters = [parameters]
@@ -55,6 +56,7 @@ class GradClipperAVT:
         self.avt_max_upd = avt_max_upd
         self.do_clip = do_clip
 
+
     def clip(self):
 
         gg_norm = clip_grad_norm_(
@@ -70,3 +72,41 @@ class GradClipperAVT:
         return {
             'gg_norm':      gg_norm,
             'gg_avt_norm':  self.gg_avt_norm}
+
+# gradient clipping class, clips gradients by clip_value or gg_norm_mavg (computed with moving average)
+class GradClipperMAVG:
+
+    def __init__(
+            self,
+            module: torch.nn.Module,
+            clip_value: Optional[float]=    None,   # clipping value, for None clips with mavg
+            factor=                         0.01,
+            first_avg=                      True,   # use averaging @start
+            start_val=                      0.1,    # if not first_avg use this value @start
+            max_upd: float=                 1.5,    # max factor of gg_mavg to update with
+            do_clip: bool=                  True):  # disables clipping (just GN calculations)
+
+        self.module = module
+        self.clip_value = clip_value
+
+        self.gg_norm_mavg = MovAvg(factor=factor, first_avg=first_avg)
+        if not first_avg:
+            self.gg_norm_mavg.upd(start_val)
+
+        self.max_upd = max_upd
+        self.do_clip = do_clip
+
+
+    def clip(self):
+
+        gg_norm = clip_grad_norm_(
+            parameters= self.module.parameters(),
+            max_norm=   self.clip_value or self.gg_norm_mavg(),
+            do_clip=    self.do_clip)
+
+        avt_update = min(gg_norm, self.max_upd * self.gg_norm_mavg()) # max value of update
+        self.gg_norm_mavg.upd(avt_update)
+
+        return {
+            'gg_norm':      gg_norm,
+            'gg_norm_clip': self.gg_norm_mavg()}
