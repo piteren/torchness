@@ -82,31 +82,34 @@ class GradClipperMAVG:
             clip_value: Optional[float]=    None,   # clipping value, for None clips with mavg
             factor=                         0.01,
             first_avg=                      True,   # use averaging @start
-            start_val=                      0.1,    # if not first_avg use this value @start
+            start_val=                      0.1,    # use this value @start (for first clip..)
             max_upd: float=                 1.5,    # max factor of gg_mavg to update with
             do_clip: bool=                  True):  # disables clipping (just GN calculations)
 
         self.module = module
         self.clip_value = clip_value
 
-        self.gg_norm_mavg = MovAvg(factor=factor, first_avg=first_avg)
-        if not first_avg:
-            self.gg_norm_mavg.upd(start_val)
+        self._gg_norm_mavg = MovAvg(factor=factor, first_avg=first_avg)
+        self._gg_norm_mavg.upd(start_val)
 
         self.max_upd = max_upd
         self.do_clip = do_clip
 
-
+    # clip & update parameters
     def clip(self):
 
         gg_norm = clip_grad_norm_(
             parameters= self.module.parameters(),
-            max_norm=   self.clip_value or self.gg_norm_mavg(),
+            max_norm=   self.clip_value or self._gg_norm_mavg(),
             do_clip=    self.do_clip)
 
-        avt_update = min(gg_norm, self.max_upd * self.gg_norm_mavg()) # max value of update
-        self.gg_norm_mavg.upd(avt_update)
+        avt_update = min(gg_norm, self.max_upd * self._gg_norm_mavg()) # max value of update
+        gg_norm_clip = self._gg_norm_mavg.upd(avt_update)
 
         return {
             'gg_norm':      gg_norm,
-            'gg_norm_clip': self.gg_norm_mavg()}
+            'gg_norm_clip': gg_norm_clip}
+
+    @property
+    def gg_norm_clip(self):
+        return self._gg_norm_mavg()

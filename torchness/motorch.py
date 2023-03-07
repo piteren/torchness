@@ -47,7 +47,7 @@ from torchness.comoneural.batcher import Batcher
 from torchness.types import TNS, DTNS
 from torchness.base_elements import mrg_ckpts
 from torchness.scaled_LR import ScaledLR
-from torchness.grad_clipping import GradClipperAVT, GradClipperMAVG
+from torchness.grad_clipping import GradClipperMAVG
 from torchness.tbwr import TBwr
 
 
@@ -135,11 +135,11 @@ class MOTorch(ParaSave, torch.nn.Module):
         'ann_base':         None,
         'ann_step':         1.0,
         'n_wup_off':        2.0,
-            # gradients clipping parameters (check torchness.base_elements.GradClipperAVT)
-        'clip_value':       None,
-        'avt_SVal':         0.1,
-        'avt_window':       100,
-        'avt_max_upd':      1.5,
+            # gradients clipping parameters (check torchness.base_elements.GradClipperMAVG)
+        'gc_factor':        0.01,
+        'gc_first_avg':     True,
+        'gc_start_val':     0.1,
+        'gc_max_upd':       1.5,
         'do_clip':          False,
             # other
         'try_load_ckpt':    True,               # tries to load a checkpoint while init
@@ -338,20 +338,13 @@ class MOTorch(ParaSave, torch.nn.Module):
             n_wup_off=      self.n_wup_off,
             logger=         get_child(self._log, 'ScaledLR'))
 
-        self._grad_clipper = GradClipperAVT(
-            module=         self,
-            clip_value=     self.clip_value,
-            avt_SVal=       self.avt_SVal,
-            avt_window=     self.avt_window,
-            avt_max_upd=    self.avt_max_upd,
-            do_clip=        self.do_clip,
-            logger=         get_child(self._log, 'GradClipperAVT'))
-        """
         self._grad_clipper = GradClipperMAVG(
             module=         self,
             factor=         self.gc_factor,
+            first_avg=      self.gc_first_avg,
+            start_val=      self.gc_start_val,
+            max_upd=        self.gc_max_upd,
             do_clip=        self.do_clip)
-        """
 
         # MOTorch by default is not in training mode
         self.train(False)
@@ -512,7 +505,14 @@ class MOTorch(ParaSave, torch.nn.Module):
 
     # saves MOTorch (ParaSave POINT and model checkpoint)
     def save(self):
-        if self.read_only: raise MOTorchException('read_only MOTorch cannot be saved!')
+
+        if self.read_only:
+            raise MOTorchException('read_only MOTorch cannot be saved!')
+
+        # to properly start grad clipping after load
+        self['gc_first_avg'] = False
+        self['gc_start_val'] = self._grad_clipper.gg_norm_clip
+
         self.save_point()
         self.save_ckpt()
         self._log.info(f'{self.__class__.__name__} {self.name} saved to {self.save_topdir}')
