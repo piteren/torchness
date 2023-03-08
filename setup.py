@@ -9,7 +9,7 @@ def get_requirements():
 
 setup(
     name=               'torchness',
-    version=            'v0.1.1',
+    version=            'v0.1.2',
     url=                'https://github.com/piteren/torchness.git',
     author=             'Piotr Niewinski',
     author_email=       'pioniewinski@gmail.com',
