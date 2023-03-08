@@ -438,7 +438,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             **kwargs)
 
         out['loss'].backward()              # update gradients
-        gnD = self._grad_clipper.clip()     # clip gradients, adds: 'gg_norm' & 'gg_avt_norm' to out
+        gnD = self._grad_clipper.clip()     # clip gradients, adds: 'gg_norm' & 'gg_norm_clip' to out
         self._opt.step()                    # apply optimizer
         self._opt.zero_grad()               # clear gradients
         self._scheduler.step()              # apply LR scheduler
@@ -725,14 +725,14 @@ class MOTorch(ParaSave, torch.nn.Module):
             batch_IX += 1
 
             if self.do_TB:
-                self.log_TB(value=loss,               tag='tr/loss',   step=self.train_step)
-                self.log_TB(value=out['gg_norm'],     tag='tr/gn',     step=self.train_step)
-                self.log_TB(value=out['gg_avt_norm'], tag='tr/gn_avt', step=self.train_step)
-                self.log_TB(value=out['currentLR'],   tag='tr/cLR',    step=self.train_step)
+                self.log_TB(value=loss,                tag='tr/loss',    step=self.train_step)
+                self.log_TB(value=out['gg_norm'],      tag='tr/gn',      step=self.train_step)
+                self.log_TB(value=out['gg_norm_clip'], tag='tr/gn_clip', step=self.train_step)
+                self.log_TB(value=out['currentLR'],    tag='tr/cLR',     step=self.train_step)
                 if acc is not None:
-                    self.log_TB(value=acc,            tag='tr/acc',    step=self.train_step)
+                    self.log_TB(value=acc,             tag='tr/acc',     step=self.train_step)
                 if f1 is not None:
-                    self.log_TB(value=f1,             tag='tr/F1',     step=self.train_step)
+                    self.log_TB(value=f1,              tag='tr/F1',      step=self.train_step)
 
             if acc is not None: tr_accL.append(acc)
             if f1 is not None: tr_f1L.append(f1)
