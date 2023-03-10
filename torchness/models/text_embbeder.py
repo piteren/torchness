@@ -5,6 +5,7 @@ import torch
 from typing import List, Union
 from tqdm import tqdm
 
+from torchness.base_elements import TorchnessException
 from torchness.motorch import MOTorch
 
 
@@ -60,24 +61,19 @@ class TextEMB(torch.nn.Module):
         return self.st_model.get_sentence_embedding_dimension()
 
 
-# is MOTorch for given st_name (SentenceTransformer)
+# is MOTorch for given st_name (SentenceTransformer) based on TextEMB module
 class TextEMB_MOTorch(MOTorch):
 
-    def __init__(
-            self,
-            module_type: type(TextEMB)=     TextEMB,
-            st_name: str=                   'all-MiniLM-L6-v2',
-            **kwargs):
+    def __init__(self, module_type:type(TextEMB)=TextEMB, **kwargs):
 
         if 'name' not in kwargs:
+            if 'st_name' not in kwargs:
+                raise TorchnessException('\'st_name\' must be given when MOTorch \'name\' is not given')
+            st_name = kwargs['st_name']
             st_name_replaced = st_name.replace('/','__') # replace possible / in st_name since it conflicts with model folder name
             kwargs['name'] = f'TextEMB_MOTorch_{st_name_replaced}'
 
-        MOTorch.__init__(
-            self,
-            module_type=    module_type,
-            st_name=        st_name,
-            **kwargs)
+        MOTorch.__init__(self, module_type=module_type, **kwargs)
 
     def get_tokens(self, lines: List[str]):
         self.logger.info(f'{self.name} prepares tokens for {len(lines)} lines..')
