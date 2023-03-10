@@ -257,7 +257,7 @@ class LayBlockCNN(torch.nn.Module):
 
     def forward(
             self,
-            inp: TNS, # INFO: at least 2-dim tensor: [..., seq, feats]
+            inp: TNS, # INFO: at least 2-dim tensor: [.., seq, feats]
             history: Optional[TNS]= None # INFO: history must be given (even zero_history) for casual mode
     ) -> DTNS:
 

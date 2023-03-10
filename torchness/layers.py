@@ -50,7 +50,7 @@ class LayDense(torch.nn.Linear):
         act_info = '' if self.activation else ', activation=None'
         return f'in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}{act_info}'
 
-# time & feats dropout (for sequences), inp tensor [...,seq,feats]
+# time & feats dropout (for sequences), inp tensor [..,seq,feats]
 class TF_Dropout(torch.nn.Dropout):
 
     def __init__(
