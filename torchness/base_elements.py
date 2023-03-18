@@ -3,6 +3,8 @@ from pypaq.mpython.mpdecor import proc_wait
 import torch
 from typing import Optional
 
+from torchness.types import TNS, DTNS
+
 
 
 class TorchnessException(Exception):
@@ -60,10 +62,10 @@ def mrg_ckpts(
 
 
 def scaled_cross_entropy(
-        labels,
-        scale,
+        labels: TNS,
+        scale: TNS,
         logits: Optional[torch.Tensor]= None,
-        probs: Optional[torch.Tensor]=  None) -> torch.Tensor:
+        probs: Optional[torch.Tensor]=  None) -> DTNS:
 
     if logits is None and probs is None:
         raise TorchnessException('logits OR probs must be given!')
@@ -73,10 +75,12 @@ def scaled_cross_entropy(
 
     prob_label = probs[range(len(labels)), labels] # probability of class from label
 
-    # merge loss for positive and negative advantage
+    # merge loss for positive and negative scale
     ce = torch.where(
         condition=  scale > 0,
         input=      -torch.log(prob_label),
         other=      -torch.log(1-prob_label))
 
-    return ce * torch.abs(scale)
+    return {
+        'scaled_cross_entropy': ce * torch.abs(scale),
+        'cross_entropy':        ce}
