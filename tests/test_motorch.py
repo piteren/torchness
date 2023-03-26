@@ -156,13 +156,19 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=    0.1)
+            in_drop=        0.1)
         print(model.name)
         point_org = model.get_point()
         print(point_org)
+        self.assertTrue(point_org['gc_first_avg'])
         model.save()
+
         point = MOTorch.load_point(name=model.name)
         print(point)
+        self.assertTrue(not point['gc_first_avg']) # INFO: gc_first_avg is updated while MOTorch.save()
+
+        point_org.pop('gc_first_avg')
+        point.pop('gc_first_avg')
         self.assertTrue(point_org == point)
 
 
@@ -440,6 +446,21 @@ class TestMOTorch(unittest.TestCase):
         print(model)
 
 
+    def test_hpmser_mode(self):
+
+        model = MOTorch(
+            module_type=        LinModel,
+            hpmser_mode=    True,
+            in_drop=        0.1)
+        self.assertRaises(MOTorchException, model.save)
+
+# those two needs to be run separately, idnk why..
+class TestMOTorch_GX(unittest.TestCase):
+
+    def setUp(self) -> None:
+        flush_tmp_dir()
+
+
     def test_gx_ckpt(self):
 
         name_A = 'modA'
@@ -498,12 +519,3 @@ class TestMOTorch(unittest.TestCase):
             name_parent_main=   name_A,
             name_parent_scnd=   name_B,
             name_child=         f'{name_A}_GXed')
-
-
-    def test_hpmser_mode(self):
-
-        model = MOTorch(
-            module_type=        LinModel,
-            hpmser_mode=    True,
-            in_drop=        0.1)
-        self.assertRaises(MOTorchException, model.save)
