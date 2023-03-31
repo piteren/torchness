@@ -18,14 +18,15 @@ class Batcher:
     Batcher
         takes data and prepares batches
         data for training, validation or testing is a dict: {key: np.ndarray or torch.tensor}
+        key is a name of input tensor (like: 'x','feats','labels' etc.)
         batch is prepared from each key
     """
 
     def __init__(
             self,
-            data_TR: Dict[str,np.ndarray],                      # INFO: it will also accept Dict[str,torch.Tensor] :) !
-            data_VL: Optional[Dict[str,np.ndarray]]=    None,
-            data_TS: Optional[Dict[str,np.ndarray]]=    None,
+            data_TR: Dict[str, np.ndarray],                      # INFO: it will also accept Dict[str, torch.Tensor]
+            data_VL: Optional[Dict[str, np.ndarray]]=   None,
+            data_TS: Optional[Dict[str, np.ndarray]]=   None,
             split_VL: float=                            0.0,    # if > 0.0 and not data_VL then factor of data_TR will be put to data_VL
             split_TS: float=                            0.0,    # if > 0.0 and not data_TS then factor of data_TR will be put to data_TS
             batch_size: int=                            16,
@@ -51,10 +52,11 @@ class Batcher:
             if data_VL or data_TS:
                 raise BatcherException('cannot split for given data_VL or data_TS')
 
-            data_TR, data_VL, data_TS = self.data_split(
+            data_TR, data_VL, data_TS = Batcher.data_split(
                 data=       data_TR,
                 split_VL=   split_VL,
-                split_TS=   split_TS)
+                split_TS=   split_TS,
+                seed=       seed)
 
         self._data_TR = data_TR
         self._data_VL = data_VL
@@ -80,10 +82,13 @@ class Batcher:
     def data_split(
             data: Dict[str,np.ndarray],
             split_VL: float,
-            split_TS: float):
+            split_TS: float,
+            seed: int):
+
+        np.random.seed(seed)
 
         keys = list(data.keys())
-        d_len = data[keys[0]].shape[0]
+        d_len = len(data[keys[0]])
         indices = np.random.permutation(d_len)
         nVL = int(d_len * split_VL)
         nTS = int(d_len * split_TS)
