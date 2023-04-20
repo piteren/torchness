@@ -631,13 +631,6 @@ class MOTorch(ParaSave, torch.nn.Module):
                 save_topdir_child=  save_topdir_child,
                 ratio=              ratio,
                 noise=              noise)
-        else:
-            cls.copy_checkpoint(
-                name_src=           name_parent_main,
-                name_trg=           name_child,
-                save_topdir_src=    save_topdir_parent_main,
-                save_topdir_trg=    save_topdir_child)
-
 
     # ***************************************************************************************************** train / test
 
