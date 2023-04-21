@@ -631,6 +631,14 @@ class MOTorch(ParaSave, torch.nn.Module):
                 save_topdir_child=  save_topdir_child,
                 ratio=              ratio,
                 noise=              noise)
+        else:
+            mod = cls(
+                name=               name_child,
+                save_topdir=        save_topdir_child or save_topdir_parent_main,
+                save_fn_pfx=        save_fn_pfx,
+                logger=             logger,
+                loglevel=           loglevel)
+            mod.save() # save checkpoint
 
     # ***************************************************************************************************** train / test
 
