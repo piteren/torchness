@@ -43,6 +43,7 @@ from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_params, point_trim
 from pypaq.pms.parasave import ParaSave
 from pypaq.mpython.devices import get_devices
+from pypaq.mpython.mpdecor import proc_wait
 from torchness.comoneural.batcher import Batcher
 from torchness.types import TNS, DTNS
 from torchness.base_elements import mrg_ckpts
@@ -632,13 +633,19 @@ class MOTorch(ParaSave, torch.nn.Module):
                 ratio=              ratio,
                 noise=              noise)
         else:
-            mod = cls(
-                name=               name_child,
-                save_topdir=        save_topdir_child or save_topdir_parent_main,
-                save_fn_pfx=        save_fn_pfx,
-                logger=             logger,
-                loglevel=           loglevel)
-            mod.save() # save checkpoint
+
+            # wrapped into subprocess for better separation of torch objects (similar to mrg_ckpts() in base_elements)
+            @proc_wait
+            def build_with_subprocess():
+                mod = cls(
+                    name=               name_child,
+                    save_topdir=        save_topdir_child or save_topdir_parent_main,
+                    save_fn_pfx=        save_fn_pfx,
+                    logger=             logger,
+                    loglevel=           loglevel)
+                mod.save() # save checkpoint
+
+            build_with_subprocess()
 
     # ***************************************************************************************************** train / test
 
