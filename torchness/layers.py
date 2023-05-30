@@ -81,7 +81,7 @@ class TF_Dropout(torch.nn.Dropout):
             f_drop = torch.ones(in_shape[-1])
             f_drop = torch.nn.functional.dropout(
                 input=      f_drop,
-                p=          self.time_drop,
+                p=          self.feat_drop,
                 training=   self.training,
                 inplace=    self.inplace)
             f_drop = torch.unsqueeze(f_drop, dim=-2)

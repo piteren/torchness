@@ -41,6 +41,17 @@ class TestLayers(unittest.TestCase):
         print(sum_dropped)
 
 
+    def test_tf_dropout_higher_dim(self):
+        tns = torch.rand((6,5,12,14))
+        sum_tns = float(torch.sum(tns))
+        print(sum_tns)
+        drl = TF_Dropout(time_drop=0.3, feat_drop=0.6)
+        dropped = drl(tns)
+        print(dropped.shape)
+        sum_dropped = float(torch.sum(dropped))
+        print(sum_dropped)
+
+
     def test_LayConv1D(self):
         inp = torch.rand(3,6)  # [Channels,SignalSeq]
         print(inp.shape, inp)
