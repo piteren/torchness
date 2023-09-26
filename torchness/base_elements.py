@@ -14,6 +14,15 @@ class TorchnessException(Exception):
 def bert_initializer(*args, std=0.02, **kwargs):
     return torch.nn.init.trunc_normal_(*args, **kwargs, std=std, a=-2*std, b=2*std)
 
+# returns number of floats in the given tensor
+def num_floats(tns:TNS) -> int:
+    n = 0
+    if tns.is_floating_point():
+        if n == 0: n = 1
+        for d in tns.shape:
+            n *= d
+    return n
+
 
 def my_initializer(*args, std=0.02, **kwargs):
     # different layers use different initialization functions:
@@ -59,6 +68,33 @@ def mrg_ckpts(
     checkpoint_M['model_state_dict'] = cmsd_M
 
     torch.save(checkpoint_M, ckptM)
+
+# returns base checkpoint information, if given two - checks if B is equal A
+def ckpt_nfo(
+        ckptA: str,                     # checkpoint A (file name)
+        ckptB: Optional[str]=   None,   # checkpoint B (file name)
+):
+    checkpoint_A = torch.load(ckptA)
+    checkpoint_B = torch.load(ckptB) if ckptB else None
+    are_equal = True
+
+    cmsd_A = checkpoint_A['model_state_dict']
+    cmsd_B = checkpoint_B['model_state_dict'] if checkpoint_B else None
+
+    print(f'Checkpoint has {len(cmsd_A)} tensors, #floats: {sum([num_floats(cmsd_A[k]) for k in cmsd_A])}')
+    for k in cmsd_A:
+        tns = cmsd_A[k]
+        print(f'{k:100} shape: {str(list(tns.shape)):15} {tns.dtype}')
+        if cmsd_B:
+            if k in cmsd_B:
+                if not torch.equal(cmsd_A[k], cmsd_B[k]):
+                    print(f' ---> is not equal in second checkpoint')
+                    are_equal = False
+            else:
+                print(f' ---> is not present in second checkpoint')
+                are_equal = False
+    if checkpoint_B:
+        print(f'Checkpoints {"are equal" if are_equal else "are NOT equal"}')
 
 
 def scaled_cross_entropy(
