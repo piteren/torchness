@@ -1,8 +1,9 @@
 import numpy as np
-from typing import Optional, List
+from pypaq.pytypes import NPL
+from typing import Optional, List, Dict
 
 
-# processes zeroes array returned by model in following intervals
+# processes zeroes arrays accumulated in intervals
 class ZeroesProcessor:
 
     def __init__(
@@ -18,34 +19,35 @@ class ZeroesProcessor:
         self.step = 0
 
     # takes next zeroes array and processes
-    def process(self, zs:List[np.ndarray], step:Optional[int]=None):
+    def process(self, zs:List[NPL], step:Optional[int]=None) -> Dict[int,float]:
 
-        if step is None: step = self.step
+        if step is None:
+            step = self.step
 
         zs = np.concatenate(zs)
-        self.single.append(np.mean(zs))
+        self.single.append(float(np.mean(zs)))
 
-        rd = {}
+        iv_NANE = {}
         if len(self.single) == self.intervals[0]:
-            rd[1] = np.mean(self.single)
+            iv_NANE[1] = np.mean(self.single)
             self.single = []
 
         for k in self.zsL:
             self.zsL[k].append(zs)
             if len(self.zsL[k]) == k:
-                stacked = np.stack(self.zsL[k], axis=0) # joins arrays along 0 axis
-                mean = np.mean(stacked, axis=0)         # mean along 0 axis (averages non activated over k)
-                clipped = np.where(mean==1,1,0)         # where average over k is 1 leave 1, else 0
-                rd[k] = np.mean(clipped)                # factor of neurons not activated over k (with 1)
-                self.zsL[k] = []                        # reset
+                stacked = np.stack(self.zsL[k], axis=0)     # stack arrays
+                mean = np.mean(stacked, axis=0)             # mean along 0 axis (averages non activated over k)
+                clipped = np.where(mean==1,1,0)             # where average over k is 1 leave 1, else 0
+                iv_NANE[k] = float(np.mean(clipped))        # factor of neurons not activated (1) over k
+                self.zsL[k] = []                            # reset
 
         if self.tbwr:
-            for k in rd:
+            for k in iv_NANE:
                 self.tbwr.add(
-                    value=  rd[k],
+                    value=  iv_NANE[k],
                     tag=    f'{self.tag_pfx}/nane_{k}',
                     step=   step)
 
         self.step += 1
 
-        return rd
+        return iv_NANE
