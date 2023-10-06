@@ -40,7 +40,7 @@ from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.files import prep_folder
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
-from pypaq.pms.base import get_params, point_trim
+from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
 from pypaq.mpython.devices import get_devices
 from pypaq.mpython.mpdecor import proc_wait
@@ -222,7 +222,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             raise MOTorchException(msg)
 
         # get defaults of Module.__init__ method
-        _init_method_params = get_params(self.module_type.__init__)
+        _init_method_params = get_class_init_params(self.module_type)
         _init_method_params_defaults = _init_method_params['with_defaults']   # get init params defaults
 
         _init_method_params_defaults_for_update = {}
@@ -265,7 +265,7 @@ class MOTorch(ParaSave, torch.nn.Module):
         _point_module = {}
         _point_module.update(self._point)
         _point_module['logger'] = self._log # INFO: we need to set logger like this, since _log is not in managed_params
-        self._point_module = point_trim(self.module_type.__init__, _point_module)
+        self._point_module = point_trim(self.module_type, _point_module)
 
         not_used_kwargs = {}
         for k in kwargs:

@@ -1,5 +1,6 @@
 import numpy as np
 from pypaq.mpython.mpdecor import proc_wait
+from pypaq.lipytools.pylogger import get_pylogger
 import torch
 from torch import nn
 import unittest
@@ -43,6 +44,9 @@ class LinModel(Module):
         return out
 
 
+logger = get_pylogger(name='test_motorch', level=20)
+
+
 class TestMOTorch(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -50,11 +54,13 @@ class TestMOTorch(unittest.TestCase):
 
 
     def test_base_init(self):
+        logger.setLevel(10)
         model = MOTorch(
             module_type=    LinModel,
             in_drop=        0.0,
-            loglevel=       10)
+            logger=         logger)
         print(model)
+        logger.setLevel(20)
 
 
     def test_init_raises(self):
@@ -71,7 +77,8 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             device=         0,
-            in_drop=        0.0)
+            in_drop=        0.0,
+            logger=         logger)
         dev = model.device
         print(dev)
         self.assertTrue(dev == 'cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -80,7 +87,8 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             device=         -1,
-            in_drop=        0.0)
+            in_drop=        0.0,
+            logger=         logger)
         dev = model.device
         print(dev)
         self.assertTrue('cuda' in dev or 'cpu' in dev)
@@ -90,7 +98,8 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             loglevel=       10,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         self.assertTrue(model['seed']==121 and model['baseLR']==0.0003)
         self.assertTrue('loss' not in model.get_managed_params())
         model.save()
@@ -98,18 +107,21 @@ class TestMOTorch(unittest.TestCase):
 
         print('\nsaved, now loading..')
 
+        logger.setLevel(10)
         model = MOTorch(
             name=       name,
-            loglevel=   10)
+            loglevel=   10,
+            logger=     logger)
         self.assertTrue(model['in_drop']==0.1 and model['in_shape']==784)
+        logger.setLevel(10)
 
 
     def test_base_creation_and_call(self):
 
         model = MOTorch(
             module_type=    LinModel,
-            #loglevel=       10,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
 
         inp = np.random.random((5,784)).astype(np.float32)
         lbl = np.random.randint(0,9,5)
@@ -138,7 +150,8 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             name=           'modA',
             module_type=    LinModel,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
 
         inp = np.random.random((5, 784)).astype(np.float32)
         lbl = np.random.randint(0, 9, 5)
@@ -147,7 +160,7 @@ class TestMOTorch(unittest.TestCase):
         print(model.name, model.train_step)
         model.save()
 
-        model = MOTorch(name=model.name)
+        model = MOTorch(name=model.name, logger=logger)
         print(model.name, model.train_step)
         self.assertTrue(model.name == 'modA' and model.train_step == 5)
 
@@ -156,7 +169,8 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         print(model.name)
         point_org = model.get_point()
         print(point_org)
@@ -176,7 +190,8 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=    0.1)
+            in_drop=        0.1,
+            logger=         logger)
         print(model.parameters())
         model.float()
         print(model.state_dict())
@@ -187,7 +202,8 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=    0.8)
+            in_drop=        0.8,
+            logger=         logger)
         print(model.training)
 
         inp = np.random.random((5,784)).astype(np.float32)
@@ -210,21 +226,24 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         print(model['name'])
         self.assertTrue(model['name'] == 'LinModel_MOTorch')
 
         model = MOTorch(
             module_type=    LinModel,
             name=           'LinTest',
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         print(model['name'])
         self.assertTrue(model['name'] == 'LinTest')
 
         model = MOTorch(
             module_type=        LinModel,
             name_timestamp=     True,
-            in_drop=            0.1)
+            in_drop=            0.1,
+            logger=             logger)
         print(model['name'])
         self.assertTrue(model['name'] != 'MOTorch_LinModel')
         self.assertTrue({d for d in '0123456789'} & set([l for l in model['name']]))
@@ -237,7 +256,8 @@ class TestMOTorch(unittest.TestCase):
             loglevel=       20,
             in_shape=       12,
             out_shape=      12,
-            in_drop=        0.0)
+            in_drop=        0.0,
+            logger=         logger)
         pms = model.get_managed_params()
         print(f'model.get_managed_params(): {pms}')
         orig_seed = model['seed']
@@ -267,14 +287,16 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             name=           'inne',
             module_type=    LinModel,
-            in_drop=        0.0)
+            in_drop=        0.0,
+            logger=         logger)
         print(f'not loaded model in_shape: {model["in_shape"]}')
         self.assertTrue(model['in_shape'] != 12)
 
         # this model will load from MOTORCH_DIR
         model = MOTorch(
             module_type=    LinModel,
-            loglevel=       10)
+            loglevel=       10,
+            logger=         logger)
         print(model['in_shape'])
         self.assertTrue(model['in_shape'] == 12)
 
@@ -283,11 +305,12 @@ class TestMOTorch(unittest.TestCase):
             name_timestamp= True,
             in_shape=       12,
             out_shape=      12,
-            in_drop=        0.0)
+            in_drop=        0.0,
+            logger=         logger)
         model.save()
         print(model['name'])
 
-        model = MOTorch(name=model['name'])
+        model = MOTorch(name=model['name'], logger=logger)
         self.assertTrue(model['in_shape'] == 12)
 
         model.copy_saved_point(
@@ -304,7 +327,8 @@ class TestMOTorch(unittest.TestCase):
             module_type=    LinModel,
             name=           'GXLin',
             psdd=           psdd,
-            in_drop=        0.0)
+            in_drop=        0.0,
+            logger=         logger)
 
         print(model.gxable)
         print(model['psdd'])
@@ -325,7 +349,8 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=    0.1)
+            in_drop=        0.1,
+            logger=         logger)
         print(model['seed'])        # value from MOTORCH_DEFAULTS
         print(model['in_shape'])    # value from module_type defaults
         self.assertTrue(model['seed'] == 121)
@@ -333,16 +358,18 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            seed=       151,
-            in_drop=    0.1)
+            seed=           151,
+            in_drop=        0.1,
+            logger=         logger)
         print(model['seed'])        # MOTORCH_DEFAULTS overridden with kwargs
         self.assertTrue(model['seed'] == 151)
 
         model = MOTorch(
             module_type=    LinModel,
-            in_shape=   24,
-            out_shape=  24,
-            in_drop=    0.1)
+            in_shape=       24,
+            out_shape=      24,
+            in_drop=        0.1,
+            logger=         logger)
         print(model['seed'])        # MOTORCH_DEFAULTS overridden with module_type defaults
         self.assertTrue(model['seed'] == 121)
         model.save()
@@ -350,7 +377,8 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             name=   name,
-            seed=   212)
+            seed=   212,
+            logger= logger)
         print(model['in_shape'])    # loaded from save
         print(model['seed'])        # saved overridden with kwargs
         self.assertTrue(model['in_shape'] == 24)
@@ -362,7 +390,8 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             seed=       121,
-            in_drop=    0.1)
+            in_drop=    0.1,
+            logger=     logger)
 
         inp = np.random.random((5,784)).astype(np.float32)
         out1 = model(inp)
@@ -371,8 +400,9 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            seed=       121,
-            in_drop=    0.1)
+            seed=           121,
+            in_drop=        0.1,
+            logger=         logger)
 
         out2 = model(inp)
         print(model['seed'])
@@ -385,13 +415,15 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            in_drop=    0.1)
+            in_drop=        0.1,
+            logger=         logger)
         model.save()
         name = model.name
 
         model = MOTorch(
             name=       name,
-            read_only=  True)
+            read_only=  True,
+            logger=     logger)
         self.assertRaises(MOTorchException, model.save)
 
 
@@ -403,7 +435,8 @@ class TestMOTorch(unittest.TestCase):
             out_shape=      10,
             name_timestamp= True,
             seed=           121,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         name = model.name
         print(model.name)
 
@@ -415,7 +448,8 @@ class TestMOTorch(unittest.TestCase):
 
         loaded_model = MOTorch(
             name=           name,
-            seed=           123) # although different seed, model will load checkpoint
+            seed=           123, # although different seed, model will load checkpoint
+            logger=         logger)
         print(loaded_model.name)
         out2 = loaded_model(inp)
         print(out2)
@@ -432,7 +466,8 @@ class TestMOTorch(unittest.TestCase):
             out_shape=      10,
             name_timestamp= True,
             seed=           121,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         name = model.name
         print(model)
         model.save()
@@ -442,16 +477,17 @@ class TestMOTorch(unittest.TestCase):
             name_src=           name,
             name_trg=           name_copied)
 
-        model = MOTorch(name=name_copied)
+        model = MOTorch(name=name_copied, logger=logger)
         print(model)
 
 
     def test_hpmser_mode(self):
 
         model = MOTorch(
-            module_type=        LinModel,
+            module_type=    LinModel,
             hpmser_mode=    True,
-            in_drop=        0.1)
+            in_drop=        0.1,
+            logger=         logger)
         self.assertRaises(MOTorchException, model.save)
 
 # those two needs to be run separately, idnk why..
@@ -473,14 +509,16 @@ class TestMOTorch_GX(unittest.TestCase):
                 module_type=    LinModel,
                 name=           name_A,
                 seed=           121,
-                in_drop=        0.1)
+                in_drop=        0.1,
+                logger=         logger)
             model.save()
 
             model = MOTorch(
                 module_type=    LinModel,
                 name=           name_B,
                 seed=           121,
-                in_drop=        0.1)
+                in_drop=        0.1,
+                logger=         logger)
             model.save()
 
         create()
@@ -503,14 +541,16 @@ class TestMOTorch_GX(unittest.TestCase):
                 module_type=    LinModel,
                 name=           name_A,
                 seed=           121,
-                in_drop=        0.1)
+                in_drop=        0.1,
+                logger=         logger)
             model.save()
 
             model = MOTorch(
                 module_type=    LinModel,
                 name=           name_B,
                 seed=           121,
-                in_drop=        0.1)
+                in_drop=        0.1,
+                logger=         logger)
             model.save()
 
         create()
