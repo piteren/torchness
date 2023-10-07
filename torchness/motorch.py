@@ -129,7 +129,7 @@ class MOTorch(ParaSave, torch.nn.Module):
         'batch_size':       64,                 # training batch size
         'n_batches':        1000,               # default length of training
         'opt_class':        torch.optim.Adam,   # default optimizer
-        'train_step':       0,                  # default (starting) train step, updated while backward()
+        'train_step':       0,                  # default (starting) train step, updated with backward()
             # LR management (check torchness.base_elements.ScaledLR)
         'baseLR':           3e-4,
         'warm_up':          None,
