@@ -19,7 +19,7 @@ def clip_grad_norm_(
     if len(parameters) == 0: return 0.0
 
     device = parameters[0].grad.device
-    if norm_type == torch._six.inf:
+    if norm_type == torch.inf:
         norms = [p.grad.detach().abs().max().to(device) for p in parameters]
         total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
     else:
