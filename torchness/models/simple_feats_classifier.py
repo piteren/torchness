@@ -1,4 +1,3 @@
-from pypaq.lipytools.pylogger import get_pylogger
 import torch
 from typing import List, Optional
 
@@ -21,14 +20,12 @@ class SFeatsCSF(Module):
             class_weights: Optional[List[float]]=   None,
             initializer: INI=                       None,
             dtype=                                  None,
-            logger=                                 None):
+            **kwargs):
 
-        if not logger: logger = get_pylogger()
-        self.logger = logger
+        Module.__init__(self, **kwargs)
 
-        Module.__init__(self)
-
-        if initializer is None: initializer = my_initializer
+        if initializer is None:
+            initializer = my_initializer
 
         self.drop = torch.nn.Dropout(p=in_drop) if in_drop else None
 

@@ -61,8 +61,8 @@ class MOTorchException(Exception):
 # forward() is needed by torch.nn.Module, loss() is needed by MOTorch: backward() & run_train()
 class Module(torch.nn.Module):
 
-    def __init__(self, logger=None, loglevel=20):
-        torch.nn.Module.__init__(self)
+    def __init__(self, logger=None, loglevel=20, **kwargs):
+        torch.nn.Module.__init__(self, **kwargs)
         if not logger:
             logger = get_pylogger(name='Module_logger', level=loglevel)
         self.logger = logger

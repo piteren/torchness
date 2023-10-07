@@ -1,22 +1,22 @@
 import math
 import numpy as np
 from sentence_transformers import SentenceTransformer
-import torch
 from typing import List, Union
 from tqdm import tqdm
 
 from torchness.base_elements import TorchnessException
-from torchness.motorch import MOTorch
+from torchness.motorch import MOTorch, Module
 
 
 # Text Embedding Module, based on Sentence-Transformer, prepares embedding for given text (str)
-class TextEMB(torch.nn.Module):
+class TextEMB(Module):
 
     def __init__(
             self,
             st_name: str=   'all-MiniLM-L6-v2',
-            enc_batch_size= 256):
-        torch.nn.Module.__init__(self)
+            enc_batch_size= 256,
+            **kwargs):
+        Module.__init__(self, **kwargs)
         self.st_name = st_name
         self.st_model = SentenceTransformer(model_name_or_path= st_name)
         self.enc_batch_size = enc_batch_size

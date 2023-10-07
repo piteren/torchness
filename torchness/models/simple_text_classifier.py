@@ -1,6 +1,5 @@
 import math
 import numpy as np
-from pypaq.lipytools.pylogger import get_pylogger
 from typing import List, Optional, Union
 from tqdm import tqdm
 
@@ -18,7 +17,6 @@ class STextCSF(Module):
             self,
             st_name: str=       'all-MiniLM-L6-v2',
             enc_batch_size=                         256,
-
             in_drop: float=                         0.0,
             mid_width: int=                         30,
             mid_drop: float=                        0.0,
@@ -26,12 +24,9 @@ class STextCSF(Module):
             class_weights: Optional[List[float]]=   None,
             initializer: INI=                       None,
             dtype=                                  None,
-            logger=                                 None):
+            **kwargs):
 
-        if not logger: logger = get_pylogger()
-        self.logger = logger
-
-        Module.__init__(self)
+        Module.__init__(self, **kwargs)
 
         self.te_module = TextEMB(
             st_name=        st_name,
