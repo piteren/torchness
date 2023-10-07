@@ -2,7 +2,6 @@ import numpy as np
 from pypaq.mpython.mpdecor import proc_wait
 from pypaq.lipytools.pylogger import get_pylogger
 import torch
-from torch import nn
 import unittest
 
 from torchness.motorch import MOTorch, Module, MOTorchException
@@ -24,13 +23,17 @@ class LinModel(Module):
             loss_func=  torch.nn.functional.cross_entropy,
             device=     None,
             dtype=      None,
-            logger=     None,
-            seed=       121):
-        nn.Module.__init__(self)
+            seed=       121,
+            **kwargs,
+    ):
+
+        Module.__init__(self, **kwargs)
+
         self.in_drop_lay = torch.nn.Dropout(p=in_drop) if in_drop>0 else None
         self.lin = LayDense(in_features=in_shape, out_features=out_shape)
         self.loss_func = loss_func
-        if logger: logger.debug('LinModel initialized!')
+
+        self.logger.debug('LinModel initialized!')
 
     def forward(self, inp) -> dict:
         if self.in_drop_lay is not None: inp = self.in_drop_lay(inp)
@@ -92,6 +95,19 @@ class TestMOTorch(unittest.TestCase):
         dev = model.device
         print(dev)
         self.assertTrue('cuda' in dev or 'cpu' in dev)
+
+
+    def test_logger(self):
+        log = get_pylogger(
+            name=       'test_motorch',
+            level=      10,
+            flat_child= True)
+        model = MOTorch(
+            module_type=    LinModel,
+            device=         0,
+            in_drop=        0.0,
+            logger=         log)
+        model.save()
 
 
     def test_save_load(self):

@@ -61,8 +61,11 @@ class MOTorchException(Exception):
 # forward() is needed by torch.nn.Module, loss() is needed by MOTorch: backward() & run_train()
 class Module(torch.nn.Module):
 
-    def __init__(self):
+    def __init__(self, logger=None, loglevel=20):
         torch.nn.Module.__init__(self)
+        if not logger:
+            logger = get_pylogger(name='Module_logger', level=loglevel)
+        self.logger = logger
 
     # returned DTNS should have at least 'logits' key with logits tensor for proper MOTorch.run_train()
     def forward(self, *args, **kwargs) -> DTNS:
@@ -206,44 +209,59 @@ class MOTorch(ParaSave, torch.nn.Module):
 
         # ************************************************************************************************* manage point
 
-        # load point from folder
+        # try to load point from given folder
         point_saved = ParaSave.load_point(
             name=           self.name,
             save_topdir=    save_topdir,
             save_fn_pfx=    save_fn_pfx)
 
-        # in case 'module_type' was not given with init, try to get it from saved
+        ### resolve module_type
+
+        # if 'module_type' was not given with init -> try to get it from saved
         if not self.module_type:
             self.module_type = point_saved.get('module_type', None)
-
         if not self.module_type:
             msg = 'module_type was not given and has not been found in saved, cannot continue!'
             self._log.error(msg)
             raise MOTorchException(msg)
 
-        # get defaults of Module.__init__ method
-        _init_method_params = get_class_init_params(self.module_type)
-        _init_method_params_defaults = _init_method_params['with_defaults']   # get init params defaults
+        ### manage params from self.module_type.__init__
 
-        _init_method_params_defaults_for_update = {}
-        _init_method_params_defaults_for_update.update(_init_method_params_defaults)
+        _module_init_def = get_class_init_params(self.module_type)['with_defaults'] # defaults of self.module_type.__init__
 
-        # we do not want params below with None to set MOTorch
-        for param in ['device','dtype','logger']:
-            if param in _init_method_params_defaults_for_update:
-                if _init_method_params_defaults_for_update[param] is None:
-                    _init_method_params_defaults_for_update.pop(param)
+        # special case of params: [device, dtype] <- those will be set with values prepared by MOTorch below, BUT...
+        _override_in_module_for_none = {
+            'device':   MOTorch.MOTORCH_DEFAULTS['device'],
+            'dtype':    MOTorch.MOTORCH_DEFAULTS['dtype']}
 
-        # update in proper order
+        # ..EXCEPT a case when are set in self.module_type.__init__ to other value than None
+        remove_from_override = []
+        for param in _override_in_module_for_none:
+            if param in _module_init_def and _module_init_def[param] is not None:
+                remove_from_override.append(param)
+        for param in remove_from_override:
+            _override_in_module_for_none.pop(param)
+
+        ### update in proper order
+
         self._point = {}
         self._point.update(ParaSave.PARASAVE_DEFAULTS)
         self._point.update(MOTorch.MOTORCH_DEFAULTS)
-        self._point.update(_init_method_params_defaults_for_update)
+        self._point.update(_module_init_def)
+        self._point.update(_override_in_module_for_none)
         self._point.update(point_saved)
         self._point.update(kwargs)  # update with kwargs given NOW by user
+        self._point['name'] = self.name
+        self._point['save_topdir'] = save_topdir
+        self._point['save_fn_pfx'] = save_fn_pfx
 
-        # resolve device (do it here to update 'device' param)
-        # INFO: device is a special parameter, MOTorch allows it to be in DevicesPypaq type - it needs to be casted to torch namespace
+        # remove logger (may come from Module init defaults)
+        if 'logger' in self._point:
+            self._point.pop('logger')
+
+        ### finally resolve device
+
+        # device parameter, may be given to MOTorch in DevicesPypaq type - it needs to be cast to PyTorch namespace here
         self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
         self._log.debug(f'>> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(
@@ -255,38 +273,34 @@ class MOTorch(ParaSave, torch.nn.Module):
             devices = ['cpu']
         device = devices[0]
         self._log.info(f'> {self.name} given devices: {self._point["device"]}, will use: {device}')
+        self._point['device'] = device
 
-        self._point.update({
-            'name':         self.name,
-            'save_topdir':  save_topdir,
-            'save_fn_pfx':  save_fn_pfx,
-            'device':       device})
+        ### prepare Module point and manage not used kwargs
 
-        _point_module = {}
-        _point_module.update(self._point)
-        _point_module['logger'] = self._log # INFO: we need to set logger like this, since _log is not in managed_params
-        self._point_module = point_trim(self.module_type, _point_module)
+        self._module_point = point_trim(self.module_type, self._point)
+        self._module_point['logger'] = get_child(self._log, 'Module_logger')
 
-        not_used_kwargs = {}
+        _kwargs_not_used = {}
         for k in kwargs:
-            if k not in self._point_module:
-                not_used_kwargs[k] = kwargs[k]
+            if k not in self._module_point:
+                _kwargs_not_used[k] = kwargs[k]
+
+        ### report
 
         self._log.debug(f'> {self.name} POINT sources:')
         self._log.debug(f'>> PARASAVE_DEFAULTS:         {ParaSave.PARASAVE_DEFAULTS}')
         self._log.debug(f'>> MOTORCH_DEFAULTS:          {MOTorch.MOTORCH_DEFAULTS}')
-        self._log.debug(f'>> Module defaults:           {_init_method_params_defaults}')
+        self._log.debug(f'>> Module.__init__ defaults:  {_module_init_def}') # here are reported original Module.__init__ defaults without any MOTorch override
         self._log.debug(f'>> POINT saved:               {point_saved}')
         self._log.debug(f'>> given kwargs:              {kwargs}')
         self._log.debug(f'> resolved POINT:')
-        self._log.debug(f'Module complete POINT:        {self._point_module}')
-        self._log.debug(f'>> kwargs not used by Module: {not_used_kwargs}')
+        self._log.debug(f'Module complete POINT:        {self._module_point}')
+        self._log.debug(f'>> kwargs not used by Module: {_kwargs_not_used}')
         self._log.debug(f'{self.name} complete POINT:\n{self._point}')
 
-        # ************************************************************************************************ init ParaSave
+        # ******************************************************************************************* init as a ParaSave
 
-        parasave_logger = get_child(self._log, name='parasave')
-        ParaSave.__init__(self, logger=parasave_logger, **self._point)
+        ParaSave.__init__(self, logger=get_child(self._log, 'ParaSave_logger'), **self._point)
 
         # params names safety check
         pms = sorted(list(self.SPEC_KEYS) + list(MOTorch.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys()))
@@ -295,7 +309,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             self._log.warning('MOTorch was asked to check for params similarity and found:')
             for pa, pb in found: self._log.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
 
-        # ************************set seed in all possible areas (https://pytorch.org/docs/stable/notes/randomness.html)
+        # *********************** set seed in all possible areas (https://pytorch.org/docs/stable/notes/randomness.html)
 
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
@@ -306,7 +320,7 @@ class MOTorch(ParaSave, torch.nn.Module):
 
         self._log.info(f'{self.name} builds graph')
         torch.nn.Module.__init__(self) # init self as a torch.nn.Module
-        self._module = self.module_type(**self._point_module) # private not to be saved with point
+        self._module = self.module_type(**self._module_point)
 
         if self.try_load_ckpt:
             self.load_ckpt()
