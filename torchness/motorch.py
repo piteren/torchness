@@ -165,6 +165,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             tbwr: Optional[TBwr]=                   None,
             logger=                                 None,
             loglevel=                               20,
+            flat_child=                             False,
             **kwargs):
 
         if not name and not module_type:
@@ -200,7 +201,8 @@ class MOTorch(ParaSave, torch.nn.Module):
                 name=       self.name,
                 add_stamp=  False,
                 folder=     None if _read_only else MOTorch.__get_model_dir(save_topdir, self.name),
-                level=      loglevel)
+                level=      loglevel,
+                flat_child= flat_child)
         self._log = logger
 
         mod_info = self.module_type.__name__ if self.module_type else 'module_type NOT GIVEN (will try to load from saved)'
