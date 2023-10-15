@@ -14,7 +14,7 @@ class SFeatsCSF(Module):
             self,
             feats_width: int,
             in_drop: float=                         0.0,
-            mid_width: int=                         30,
+            mid_width: Optional[int]=               30,
             mid_drop: float=                        0.0,
             num_classes: int=                       2,
             class_weights: Optional[List[float]]=   None,
@@ -24,24 +24,25 @@ class SFeatsCSF(Module):
 
         Module.__init__(self, **kwargs)
 
+        self.logger.info(f'*** SFeatsCSF (Module) *** inits for feats of width {feats_width}')
+
         if initializer is None:
             initializer = my_initializer
 
         self.drop = torch.nn.Dropout(p=in_drop) if in_drop else None
 
-        self.logger.info(f'SFeatsCSF Module inits for feats of width {feats_width}')
         self.mid = LayDense(
             in_features=    feats_width,
             out_features=   mid_width,
             activation=     torch.nn.ReLU,
             bias=           True,
             initializer=    initializer,
-            dtype=          dtype)
+            dtype=          dtype) if mid_width else None
 
-        self.mid_drop = torch.nn.Dropout(p=mid_drop) if mid_drop else None
+        self.mid_drop = torch.nn.Dropout(p=mid_drop) if self.mid and mid_drop else None
 
         self.logits = LayDense(
-            in_features=    mid_width,
+            in_features=    mid_width if self.mid else feats_width,
             out_features=   num_classes,
             activation=     None,
             bias=           False,
@@ -53,10 +54,18 @@ class SFeatsCSF(Module):
         self.class_weights = class_weights
 
     def forward(self, feats:TNS) -> DTNS:
-        if self.drop: feats = self.drop(feats)
-        mid = self.mid(feats)
-        if self.mid_drop: mid = self.mid_drop(mid)
-        logits = self.logits(mid)
+
+        out = feats
+
+        if self.drop:
+            out = self.drop(out)
+
+        if self.mid:
+            out = self.mid(out)
+            if self.mid_drop:
+                out = self.mid_drop(out)
+
+        logits = self.logits(out)
         probs = torch.nn.functional.softmax(logits, dim=-1)
         preds = torch.argmax(logits, dim=-1)
         return {

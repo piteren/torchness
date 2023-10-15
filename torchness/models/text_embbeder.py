@@ -20,6 +20,7 @@ class TextEMB(Module):
         self.st_name = st_name
         self.st_model = SentenceTransformer(model_name_or_path= st_name)
         self.enc_batch_size = enc_batch_size
+        self.logger.info(f'*** TextEMB : {self.st_name} *** initialized, feats width:{self.width} seq length:{self.length}')
 
     def tokenize(self, texts:List[str]) -> List[List[str]]:
         tokenizer = self.st_model.tokenizer
@@ -59,6 +60,10 @@ class TextEMB(Module):
     @property
     def width(self) -> int:
         return self.st_model.get_sentence_embedding_dimension()
+
+    @property
+    def length(self) -> int:
+        return self.st_model.get_max_seq_length()
 
 
 # is MOTorch for given st_name (SentenceTransformer) based on TextEMB module

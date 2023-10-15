@@ -15,7 +15,7 @@ class STextCSF(Module):
 
     def __init__(
             self,
-            st_name: str=       'all-MiniLM-L6-v2',
+            st_name: str=                           'all-MiniLM-L6-v2',
             enc_batch_size=                         256,
             in_drop: float=                         0.0,
             mid_width: int=                         30,

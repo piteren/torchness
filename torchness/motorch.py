@@ -61,8 +61,12 @@ class MOTorchException(Exception):
 # forward() is needed by torch.nn.Module, loss() is needed by MOTorch: backward() & run_train()
 class Module(torch.nn.Module):
 
-    def __init__(self, logger=None, loglevel=20, **kwargs):
-        torch.nn.Module.__init__(self, **kwargs)
+    def __init__(
+            self,
+            logger=     None,
+            loglevel=   20,
+            **kwargs):
+        torch.nn.Module.__init__(self)
         if not logger:
             logger = get_pylogger(name='Module_logger', level=loglevel)
         self.logger = logger
@@ -688,6 +692,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             split_TS=       split_TS,
             batch_size=     self.batch_size,
             batching_type=  'random_cov',
+            seed=           self.seed,
             logger=         get_child(self._log, 'Batcher'))
 
     # trains model, returns optional test score
@@ -731,6 +736,10 @@ class MOTorch(ParaSave, torch.nn.Module):
         ts_score_max = 0                        # test score (acc or F1) max
         ts_score_all_results = []               # test score all results
         ts_score_mav = MovAvg(mov_avg_factor)   # test score (acc or F1) moving average
+
+        # initial save
+        if not self.read_only and save_max:
+            self.save_ckpt()
 
         ts_bIX = [bIX for bIX in range(n_batches+1) if not bIX % test_freq] # batch indexes when test will be performed
         assert ts_bIX, 'ERR: model SHOULD BE tested while training!'
@@ -790,31 +799,39 @@ class MOTorch(ParaSave, torch.nn.Module):
                 tr_f1L = []
                 tr_lssL = []
 
+                # model is saved for max ts_score
                 if ts_score is not None and ts_score > ts_score_max:
                     ts_score_max = ts_score
-                    if not self.read_only and save_max: self.save_ckpt() # model is saved for max ts_score
-
-        # weighted (linear ascending weight) test score for last 10% test results
-        ts_score_wval = None
-        if ts_score_all_results:
-            ts_score_wval = 0.0
-            weight = 1
-            sum_weight = 0
-            for tr in ts_score_all_results[-ten_factor:]:
-                ts_score_wval += tr*weight
-                sum_weight += weight
-                weight += 1
-            ts_score_wval /= sum_weight
-
-            if self.do_TB:
-                self.log_TB(value=ts_score_wval, tag=f'ts/ts_{score_name}_wval', step=self.train_step)
+                    if not self.read_only and save_max:
+                        self.save_ckpt()
 
         self._log.info(f'### model {self.name} finished training')
-        if ts_score_wval is not None:
-            self._log.info(f' > test_{score_name}_max:  {ts_score_max:.4f}')
-            self._log.info(f' > test_{score_name}_wval: {ts_score_wval:.4f}')
 
-        return ts_score_wval
+        ts_score_fin = None
+
+        if save_max:
+            ts_score_fin = ts_score_max
+            self.load_ckpt()
+
+        # weighted (linear ascending weight) test score for last 10% test results
+        else:
+            if ts_score_all_results:
+                ts_score_fin = 0.0
+                weight = 1
+                sum_weight = 0
+                for tr in ts_score_all_results[-ten_factor:]:
+                    ts_score_fin += tr*weight
+                    sum_weight += weight
+                    weight += 1
+                ts_score_fin /= sum_weight
+
+        if ts_score_fin is not None:
+            self._log.info(f' > test_{score_name}_max: {ts_score_max:.4f}')
+            self._log.info(f' > test_{score_name}_fin: {ts_score_fin:.4f}')
+            if self.do_TB:
+                self.log_TB(value=ts_score_fin, tag=f'ts/ts_{score_name}_fin', step=self.train_step)
+
+        return ts_score_fin
 
     # tests model, returns: optional loss (average), optional accuracy, optional F1
     # optional loss <- since there may be not TS batches
