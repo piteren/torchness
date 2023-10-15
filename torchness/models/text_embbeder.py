@@ -18,7 +18,7 @@ class TextEMB(Module):
             **kwargs):
         Module.__init__(self, **kwargs)
         self.st_name = st_name
-        self.st_model = SentenceTransformer(model_name_or_path= st_name)
+        self.st_model = SentenceTransformer(model_name_or_path=st_name)
         self.enc_batch_size = enc_batch_size
         self.logger.info(f'*** TextEMB : {self.st_name} *** initialized, feats width:{self.width} seq length:{self.length}')
 
