@@ -83,8 +83,8 @@ class SFeatsCSF(Module):
             target=     labels,
             weight=     self.class_weights,
             reduction=  'mean')
-        acc = self.accuracy(logits, labels)
-        f1 = self.f1(logits, labels)
+        acc = self.accuracy(logits=logits, labels=labels)
+        f1 = self.f1(logits=logits, labels=labels)
         out.update({
             'loss': loss,
             'acc':  acc,

@@ -90,12 +90,11 @@ class Module(torch.nn.Module):
         return float(np.average(np.equal(preds, labels)))
 
     # baseline F1 implementation for logits & lables
-    def f1(
-            self,
-            logits: TNS,
-            labels: TNS,
-            average=    'weighted', # mean weighted by support
-    ) -> float:
+    # correctly supports average (since test while training may be run in batches):
+    #  micro (per sample)
+    #  macro (per class)
+    #  weighted (per class weighted by support)
+    def f1(self, logits:TNS, labels:TNS, average='weighted') -> float:
         logits = logits.detach().cpu().numpy()
         preds = np.argmax(logits, axis=-1)
         labels = labels.cpu().numpy()
