@@ -1,35 +1,3 @@
-"""
-    MOTorch wraps PyTorch neural network (Module) and adds some features.
-    - Builds given Module.
-    - Manages one MOTorch folder (subfolder of SAVE_TOPDIR named with MOTorch name)
-      for all MOTorch data (logs, params, checkpoints). MOTorch supports
-      serialization into this folder.
-    - Extends ParaSave, manages all init parameters. Properly resolves parameters
-      using all possible sources, saves and loads them from MOTorch folder.
-    - Parameters are kept in self as a Subscriptable to be easily accessed.
-    - Properly resolves and holds name of object, adds stamp if needed.
-    - Supports / creates logger.
-    - May be read only (prevents save over).
-    - May be called (with __call__) <- runs NN FWD with given data
-    - May be called BWD with backward() <- runs gradient backprop for given data
-    - Supports hpmser mode.
-    - Manages seed and guarantees reproducibility.
-    - Manages GPU / CPU device used by NN.
-    - Adds TensorBoard support.
-    - Defines / implements save / load / copy of whole MOTorch (ParaSave + NN checkpoint).
-    - Defines interface of baseline training & testing with data loaded to Batcher.
-    - Defines / implements GX.
-    - Adds some sanity checks.
-
-    Module:
-        - should implement forward() and loss() methods
-            - arguments for parameters of forward() will be cast to TNS (by default) by MOTorch,
-        - device is managed by MOTorch with dev_pypaq: DevicesPypaq parameter
-
-    MOTorch extends Module. By default, after init, MOTorch is set to train.mode=False.
-    MOTorch manages its train.mode by itself.
-"""
-
 import numpy as np
 import shutil
 from sklearn.metrics import f1_score
@@ -52,20 +20,17 @@ from torchness.grad_clipping import GradClipperMAVG
 from torchness.tbwr import TBwr
 
 
-
 class MOTorchException(Exception):
     pass
 
 
-# torch.nn.Module to be implemented
-# forward() is needed by torch.nn.Module, loss() is needed by MOTorch: backward() & run_train()
 class Module(torch.nn.Module):
+    """ Module type supported by MOTorch
+    extends torch.nn.Module with .loss() which enables training functionality with MOTorch
+    - loss() is required by MOTorch.backward() & .run_train()
+    """
 
-    def __init__(
-            self,
-            logger=     None,
-            loglevel=   20,
-            **kwargs):
+    def __init__(self, logger=None, loglevel=20, **kwargs):
         torch.nn.Module.__init__(self)
         if not logger:
             logger = get_pylogger(name='Module_logger', level=loglevel)
@@ -79,22 +44,23 @@ class Module(torch.nn.Module):
         """
         raise NotImplementedError
 
-    # baseline accuracy implementation for logits & lables
-    def accuracy(
-            self,
-            logits: TNS,
-            labels: TNS) -> float:
+    # noinspection PyMethodMayBeStatic
+    def accuracy(self, logits:TNS, labels:TNS) -> float:
+        """baseline accuracy implementation for logits & lables
+        """
         logits = logits.detach().cpu().numpy()
         preds = np.argmax(logits, axis=-1)
         labels = labels.cpu().numpy()
         return float(np.average(np.equal(preds, labels)))
 
-    # baseline F1 implementation for logits & lables
-    # correctly supports average (since test while training may be run in batches):
-    #  micro (per sample)
-    #  macro (per class)
-    #  weighted (per class weighted by support)
+    # noinspection PyMethodMayBeStatic
     def f1(self, logits:TNS, labels:TNS, average='weighted') -> float:
+        """baseline F1 implementation for logits & lables
+        correctly supports average (since test while training may be run in batches):
+            micro (per sample)
+            macro (per class)
+            weighted (per class weighted by support)
+        """
         logits = logits.detach().cpu().numpy()
         preds = np.argmax(logits, axis=-1)
         labels = labels.cpu().numpy()
@@ -105,32 +71,62 @@ class Module(torch.nn.Module):
             labels=         np.unique(preds),
             zero_division=  0)
 
-    # returned DTNS should be: forward() DTNS updated with loss (and optional acc, f1)
     def loss(self, *args, **kwargs) -> DTNS:
-        """
-            exemplary implementation:
+        """Exemplary implementation:
         out = self(input)                                                                   <- forward DTNS
         logits = out['logits']
         out['loss'] = torch.nn.functional.cross_entropy(logits, labels, reduction='mean')   <- update with loss
         out['acc'] = self.accuracy(logits, labels)                                          <- update with acc
         out['f1'] = self.f1(logits, labels)                                                 <- update with f1
+
+        returned DTNS should be: .forward() DTNS updated with loss (and optional acc, f1)
         """
         raise NotImplementedError
 
 
-# extends Module (torch.nn.Module) with ParaSave and many others
-class MOTorch(ParaSave, torch.nn.Module):
+# holds Module, adds ParaSave interface and many others mechanisms and functions
+class MOTorch(ParaSave):
+    """MOTorch holds PyTorch neural network (Module) and adds some features:
+    - builds given Module
+    - manages MOTorch folder (subfolder of SAVE_TOPDIR named with MOTorch name)
+      for all MOTorch data (logs, params, checkpoints), MOTorch supports
+      serialization into / from this folder
+    - extends ParaSave, manages all init parameters, properly resolves parameters
+      using all possible sources
+    - parameters are kept in self as a Subscriptable to be easily accessed
+    - properly resolves and holds name of object, adds stamp if needed
+    - implements logger
+    - may be read only (prevents save over)
+    - may be called (with __call__) <- runs NN FWD with given data,
+      input data type is checked / changed by MOTorch
+    - may be called BWD with backward() <- runs gradient backprop for given data
+    - manages its train.mode by itself
+    - supports hpmser mode
+    - manages seed and guarantees reproducibility
+    - manages GPU / CPU device used by NN with device: DevicesPypaq parameter
+    - adds TensorBoard support
+    - implements: save / load / copy of whole MOTorch (ParaSave + NN checkpoint)
+    - implements baseline training & testing with data loaded to Batcher
+    - implements GX (genetic crossing)
+    - adds some sanity checks
 
-    SPEC_KEYS: set = {
-        'loss',         # loss
-        'acc',          # accuracy
-        'f1'}           # F1
+    MOTorch defaults are stored in MOTORCH_DEFAULTS dict and cannot be placed in __init__ defaults.
+    This is a consequence of the params resolution mechanism in MOTorch,
+    where params may come from three sources, and each subsequent source overrides the previous ones:
+    1. __init__ defaults - only a few of them are considered in ParaSave managed params
+    2. saved in the folder
+    3. provided through kwargs in __init__
+    If all MOTorch params were set with __init__ defaults,
+    it would not be possible to distinguish between sources 1 and 3.
+
+    @DynamicAttrs # disables warning for unresolved attributes references
+    """
 
     MOTORCH_DEFAULTS = {
         'seed':             123,                # seed for torch and numpy
         'device':           -1,                 # :DevicesPypaq (check pypaq.mpython.devices)
         'dtype':            torch.float32,      # dtype of floats in MOTorch (16/32/64 etc)
-        'bypass_data_conv': False,              # to bypass input data conversion with forward(), loss(), backward()
+        'bypass_data_conv': False,              # to bypass input data conversion with when calling: forward, loss, backward
             # training
         'batch_size':       64,                 # training batch size
         'n_batches':        1000,               # default length of training
@@ -155,12 +151,13 @@ class MOTorch(ParaSave, torch.nn.Module):
         'do_TB':            True,               # runs TensorBard, saves in self.motorch_dir
     }
 
-    SAVE_TOPDIR = '_models'
-    SAVE_FN_PFX = 'motorch_point' # POINT file prefix
+    # override ParaSave defaults
+    SAVE_TOPDIR = '_models'         # save top directory
+    SAVE_FN_PFX = 'motorch_point'   # POINT file prefix
 
     def __init__(
             self,
-            module_type: Optional[type(Module)]=    None,   # also accepts torch.nn.Module but then some methods won't work (run_train, etc.)
+            module_type: Optional[type(Module)]=    None,
             name: Optional[str]=                    None,
             name_timestamp=                         False,
             save_topdir: Optional[str]=             None,
@@ -308,7 +305,7 @@ class MOTorch(ParaSave, torch.nn.Module):
         ParaSave.__init__(self, logger=get_child(self._log, 'ParaSave_logger'), **self._point)
 
         # params names safety check
-        pms = sorted(list(self.SPEC_KEYS) + list(MOTorch.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys()))
+        pms = list(MOTorch.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys())
         found = self.check_params_sim(params=pms)
         if found:
             self._log.warning('MOTorch was asked to check for params similarity and found:')
@@ -324,7 +321,6 @@ class MOTorch(ParaSave, torch.nn.Module):
         # ***************************************************************************************** build MOTorch Module
 
         self._log.info(f'{self.name} builds graph')
-        torch.nn.Module.__init__(self) # init self as a torch.nn.Module
         self._module = self.module_type(**self._module_point)
 
         if self.try_load_ckpt:
@@ -333,8 +329,8 @@ class MOTorch(ParaSave, torch.nn.Module):
             self._log.info(f'> {self.name} checkpoint not loaded, not even tried because \'try_load_ckpt\' was set to {self.try_load_ckpt}')
 
         self._log.debug(f'> moving {self.name} to device: {self.device}, dtype: {self.dtype}')
-        self.to(self.device)
-        self.to(self.dtype)
+        self._module.to(self.device)
+        self._module.to(self.dtype)
 
         self._log.debug(f'{self.name} module initialized!')
 
@@ -342,7 +338,7 @@ class MOTorch(ParaSave, torch.nn.Module):
         opt_params = {k[4:]: self[k] for k in self.get_managed_params() if k.startswith('opt_')}
         opt_params.pop('class')
         self._opt = self.opt_class(
-            params= self.parameters(),
+            params= self._module.parameters(),
             lr=     self.baseLR,
             **opt_params)
         #print(len(self._opt.param_groups))
@@ -359,7 +355,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             logger=         get_child(self._log, 'ScaledLR'))
 
         self._grad_clipper = GradClipperMAVG(
-            module=         self,
+            module=         self._module,
             factor=         self.gc_factor,
             first_avg=      self.gc_first_avg,
             start_val=      self.gc_start_val,
@@ -381,11 +377,11 @@ class MOTorch(ParaSave, torch.nn.Module):
 
     # **************************************************************************** model call (run NN with data) methods
 
-    # forward call on NN
+    # forward call
     def __call__(self, *args, **kwargs) -> dict:
-        return torch.nn.Module.__call__(self, *args, **kwargs)
+        return self.forward(*args, **kwargs)
 
-    # converts given data to torch.Tensor compatible with self (type,device,dtype)
+    # converts given data to torch.Tensor compatible with self (device,dtype)
     def convert(self, data:Any) -> TNS:
 
         # do not convert None
@@ -418,7 +414,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
-        out = self.module(*args, **kwargs)
+        out = self._module(*args, **kwargs)
 
         if set_training: self.train(False) # eventually roll back to default
         return out
@@ -437,7 +433,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
-        out = self.module.loss(*args, **kwargs)
+        out = self._module.loss(*args, **kwargs)
 
         if set_training: self.train(False) # eventually roll back to default
         return out
@@ -499,7 +495,7 @@ class MOTorch(ParaSave, torch.nn.Module):
         try:
             # INFO: immediately place all tensors to current device (not previously saved one)
             save_obj = torch.load(f=ckpt_path, map_location=self.device)
-            self.load_state_dict(save_obj.pop('model_state_dict'))
+            self._module.load_state_dict(save_obj.pop('model_state_dict'))
             self._log.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
             self._log.info(f'> {self.name} checkpoint NOT loaded because of exception: {e}')
@@ -518,7 +514,7 @@ class MOTorch(ParaSave, torch.nn.Module):
             save_topdir=    save_topdir or self.save_topdir,
             model_name=     name or self.name)
 
-        save_obj = {'model_state_dict': self.state_dict()}
+        save_obj = {'model_state_dict': self._module.state_dict()}
         if additional_data: save_obj.update(additional_data)
 
         torch.save(obj=save_obj, f=ckpt_path)
@@ -863,17 +859,23 @@ class MOTorch(ParaSave, torch.nn.Module):
         loss_avg = sum(lossL)/n_all if lossL else None
         return loss_avg, acc_avg, f1_avg
 
-
     # *********************************************************************************************** other / properties
 
     # updates scheduler baseLR of 0 group
     def update_baseLR(self, lr: float):
-        self.baseLR = lr # in case model will be saved >> loaded
+        self.baseLR = lr
         self._scheduler.update_base_lr0(lr)
 
     @property
     def module(self):
         return self._module
+
+    def train(self, mode:bool=True):
+        return self._module.train(mode)
+
+    @property
+    def training(self):
+        return self._module.training
 
     @property
     def tbwr(self):
@@ -894,13 +896,7 @@ class MOTorch(ParaSave, torch.nn.Module):
 
     @property
     def size(self) -> int:
-        pp = 0
-        for p in list(self.parameters()):
-            nn = 1
-            for s in list(p.size()):
-                nn = nn * s
-            pp += nn
-        return pp
+        return sum([p.numel() for p in self._module.parameters()])
 
     def __str__(self):
         s = f'MOTorch: {ParaSave.__str__(self)}\n'
