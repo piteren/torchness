@@ -118,7 +118,7 @@ class MOTorch(ParaSave):
     If all MOTorch params were set with __init__ defaults,
     it would not be possible to distinguish between sources 1 and 3.
 
-    @DynamicAttrs # disables warning for unresolved attributes references
+    @DynamicAttrs <-- disables warning for unresolved attributes references
     """
 
     MOTORCH_DEFAULTS = {
