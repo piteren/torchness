@@ -83,7 +83,6 @@ class Module(torch.nn.Module):
         """
         raise NotImplementedError
 
-
 # holds Module, adds ParaSave interface and many others mechanisms and functions
 class MOTorch(ParaSave):
     """MOTorch holds PyTorch neural network (Module) and adds some features:
