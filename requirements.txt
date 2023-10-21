@@ -1,4 +1,5 @@
 numpy
+pillow
 pypaq
 tqdm
 scikit-learn
