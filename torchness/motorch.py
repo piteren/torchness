@@ -885,10 +885,6 @@ class MOTorch(ParaSave):
         return self._module.train(mode)
 
     @property
-    def training(self):
-        return self._module.training
-
-    @property
     def tbwr(self):
         return self._TBwr
 

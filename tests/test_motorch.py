@@ -58,6 +58,7 @@ logger = get_pylogger(name='test_motorch', level=20)
 
 class TestMOTorch(unittest.TestCase):
 
+
     def setUp(self) -> None:
         flush_tmp_dir()
 
@@ -71,7 +72,7 @@ class TestMOTorch(unittest.TestCase):
         print(model)
 
         self.assertTrue(model.size == 7850)
-        self.assertFalse(model.training)
+        self.assertFalse(model.module.training)
         self.assertTrue(type(model.module) is LinModel)
         self.assertTrue(model.dtype == torch.float32)
 
@@ -339,7 +340,7 @@ class TestMOTorch(unittest.TestCase):
             module_type=    LinModel,
             in_drop=        0.8,
             logger=         logger)
-        print(model.training)
+        print(model.module.training)
 
         inp = np.random.random((5,784)).astype(np.float32)
         lbl = np.random.randint(0,9,5)
@@ -528,6 +529,13 @@ class TestMOTorch(unittest.TestCase):
             in_drop=        0.1,
             logger=         logger)
         self.assertRaises(MOTorchException, model.save)
+
+
+class TestMOTorch_GX(unittest.TestCase):
+
+
+    def setUp(self) -> None:
+        flush_tmp_dir()
 
 
     def test_gx_ckpt(self):
