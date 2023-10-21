@@ -348,7 +348,7 @@ class MOTorch(ParaSave):
             self.opt_class, opt_kwargs = self._module.get_optimizer_def()
             self._log.debug(f'using optimizer from Module: {self.opt_class.__name__}, Module optimizer kwargs: {opt_kwargs}')
         except MOTorchException as e:
-            self._log.debug(f'using default MOTorch optimizer: {self.opt_class.__name__}')
+            self._log.debug(f'using optimizer resolved by MOTorch: {self.opt_class.__name__}')
 
         opt_kwargs['params'] = self._module.parameters()
         opt_kwargs['lr'] = self.baseLR
