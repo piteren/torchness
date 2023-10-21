@@ -80,6 +80,7 @@ class Module(torch.nn.Module):
         """If implemented, MOTorch will use returned Optimizer definition - type and kwargs"""
         raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
 
+
     def loss(self, *args, **kwargs) -> DTNS:
         """Exemplary implementation:
         out = self(input)                                                                   <- forward DTNS
