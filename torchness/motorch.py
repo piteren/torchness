@@ -26,8 +26,9 @@ class MOTorchException(Exception):
 
 class Module(torch.nn.Module):
     """ Module type supported by MOTorch
-    extends torch.nn.Module with .loss() which enables training functionality with MOTorch
-    - loss() is required by MOTorch.backward() & .run_train()
+    extends torch.nn.Module with some methods like .loss() .get_optimizer()
+    Module supports training functionality with MOTorch
+    (loss() is required by MOTorch.backward() & .run_train())
     """
 
     def __init__(self, logger=None, loglevel=20, **kwargs):
@@ -36,11 +37,14 @@ class Module(torch.nn.Module):
             logger = get_pylogger(name='Module_logger', level=loglevel)
         self.logger = logger
 
-    # returned DTNS should have at least 'logits' key with logits tensor for proper MOTorch.run_train()
+
     def forward(self, *args, **kwargs) -> DTNS:
-        """
-            exemplary implementation:
-        return {'logits': self.logits(input)}
+        """forward pass function
+        returned DTNS should have at least 'logits' key
+        with logits tensor for proper MOTorch.run_train()
+
+        exemplary implementation:
+            return {'logits': self.logits(input)}
         """
         raise NotImplementedError
 
@@ -70,6 +74,11 @@ class Module(torch.nn.Module):
             average=        average,
             labels=         np.unique(preds),
             zero_division=  0)
+
+
+    def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
+        """If implemented, MOTorch will use returned Optimizer definition - type and kwargs"""
+        raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
 
     def loss(self, *args, **kwargs) -> DTNS:
         """Exemplary implementation:
@@ -320,7 +329,7 @@ class MOTorch(ParaSave):
         # ***************************************************************************************** build MOTorch Module
 
         self._log.info(f'{self.name} builds graph')
-        self._module = self.module_type(**self._module_point)
+        self._module: Module = self.module_type(**self._module_point)
 
         if self.try_load_ckpt:
             self.load_ckpt()
@@ -331,17 +340,19 @@ class MOTorch(ParaSave):
         self._module.to(self.device)
         self._module.to(self.dtype)
 
-        self._log.debug(f'{self.name} module initialized!')
+        self._log.debug(f'{self.name} Module initialized!')
 
-        # optimizer params may be given with 'opt_' prefix
-        opt_params = {k[4:]: self[k] for k in self.get_managed_params() if k.startswith('opt_')}
-        opt_params.pop('class')
-        self._opt = self.opt_class(
-            params= self._module.parameters(),
-            lr=     self.baseLR,
-            **opt_params)
-        #print(len(self._opt.param_groups))
-        #print(self._opt.param_groups[0].keys())
+        opt_kwargs = {}
+        try:
+            self.opt_class, opt_kwargs = self._module.get_optimizer_def()
+            self._log.debug(f'using optimizer from Module: {self.opt_class.__name__}, Module optimizer kwargs: {opt_kwargs}')
+        except MOTorchException as e:
+            self._log.debug(f'using default MOTorch optimizer: {self.opt_class.__name__}')
+
+        opt_kwargs['params'] = self._module.parameters()
+        opt_kwargs['lr'] = self.baseLR
+        self._opt = self.opt_class(**opt_kwargs)
+        self._log.debug(f'MOTorch optimizer:\n{self._opt}')
 
         # from now LR is managed by scheduler
         self._scheduler = ScaledLR(

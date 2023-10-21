@@ -2,6 +2,7 @@ import numpy as np
 from pypaq.mpython.mpdecor import proc_wait
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 import torch
+from typing import Tuple, Dict
 import unittest
 
 from torchness.motorch import MOTorch, Module, MOTorchException
@@ -45,6 +46,11 @@ class LinModel(Module):
         out['loss'] = self.loss_func(out['logits'], lbl)
         out['acc'] = self.accuracy(out['logits'], lbl)  # using baseline
         return out
+
+class LinModelOpt(LinModel):
+
+    def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
+        return torch.optim.SGD, {}
 
 
 logger = get_pylogger(name='test_motorch', level=20)
@@ -306,6 +312,25 @@ class TestMOTorch(unittest.TestCase):
             prob_noise=     1.0,
             prob_axis=      1.0)
         print(dna['seed'])
+
+
+    def test_optimizer(self):
+
+        _log = get_child(logger, change_level=-10)
+
+        model = MOTorch(
+            module_type=    LinModel,
+            in_drop=        0.0,
+            logger=         _log,
+        )
+        self.assertTrue(type(model._opt) == torch.optim.Adam)
+
+        model = MOTorch(
+            module_type=    LinModelOpt,
+            in_drop=        0.0,
+            logger=         _log,
+        )
+        self.assertTrue(type(model._opt) == torch.optim.SGD)
 
 
     def test_training_mode(self):
