@@ -464,6 +464,7 @@ class MOTorch(ParaSave):
         out['loss'].backward()              # build gradients
         gnD = self._grad_clipper.clip()     # clip gradients, adds: 'gg_norm' & 'gg_norm_clip' to out
         self._opt.step()                    # apply optimizer
+        self._opt.zero_grad()               # clear gradients
         self._scheduler.step()              # apply LR scheduler
         self.train_step += 1                # update step
 
