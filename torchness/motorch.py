@@ -388,9 +388,28 @@ class MOTorch(ParaSave):
 
     # **************************************************************************** model call (run NN with data) methods
 
-    # forward call
-    def __call__(self, *args, **kwargs) -> dict:
-        return self.forward(*args, **kwargs)
+    # forward call, runs forward on nn.Module (with current nn.Module.training.mode - by default not training)
+    def __call__(
+            self,
+            *args,
+            bypass_data_conv=               False,
+            set_training: Optional[bool]=   None,
+            **kwargs
+    ) -> DTNS:
+
+        if set_training is not None:
+            self.train(set_training)
+
+        if not (bypass_data_conv or self.bypass_data_conv):
+            args = [self.convert(data=a) for a in args]
+            kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
+
+        out = self._module(*args, **kwargs)
+
+        if set_training:
+            self.train(False) # eventually roll back to default
+
+        return out
 
     # converts given data to torch.Tensor compatible with self (device,dtype)
     def convert(self, data:Any) -> TNS:
@@ -406,29 +425,6 @@ class MOTorch(ParaSave):
             data = data.to(self.device, self.dtype if data.is_floating_point() or data.is_complex() else None)
 
         return data
-
-    # runs forward on nn.Module (with current nn.Module.training.mode - by default not training)
-    def forward(
-            self,
-            *args,
-            bypass_data_conv=               False,
-            set_training: Optional[bool]=   None,
-            **kwargs) -> DTNS:
-        """
-        INFO: since MOTorch is a torch.nn.Module, call forward() call should be avoided,
-        INFO: instead use just MOTorch.__call__() /self()
-        """
-
-        if set_training is not None: self.train(set_training)
-
-        if not (bypass_data_conv or self.bypass_data_conv):
-            args = [self.convert(data=a) for a in args]
-            kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
-
-        out = self._module(*args, **kwargs)
-
-        if set_training: self.train(False) # eventually roll back to default
-        return out
 
     # forward + loss call on NN (with current nn.Module.training.mode - by default not training)
     def loss(
@@ -455,7 +451,7 @@ class MOTorch(ParaSave):
             *args,
             bypass_data_conv=   False,
             set_training: bool= True,   # for backward training mode is set to True by default
-            empty_cuda_cache=   False,  # releases all unoccupied cached memory currently held by the caching allocator INFO: BEWARE: allocates another memory in cuda:0
+            empty_cuda_cache=   False,  # releases all unoccupied cached memory currently held by the caching allocator
             **kwargs) -> DTNS:
 
         out = self.loss(
@@ -464,17 +460,17 @@ class MOTorch(ParaSave):
             set_training=       set_training,
             **kwargs)
 
-        out['loss'].backward()              # update gradients
+        self._opt.zero_grad()               # clear gradients
+        out['loss'].backward()              # build gradients
         gnD = self._grad_clipper.clip()     # clip gradients, adds: 'gg_norm' & 'gg_norm_clip' to out
         self._opt.step()                    # apply optimizer
-        self._opt.zero_grad()               # clear gradients
         self._scheduler.step()              # apply LR scheduler
         self.train_step += 1                # update step
 
         if empty_cuda_cache:
             torch.cuda.empty_cache()
 
-        out['currentLR'] = self._scheduler.get_last_lr()[0]         # INFO: we take currentLR of first group
+        out['currentLR'] = self._scheduler.get_last_lr()[0]         # INFO: currentLR of the first group is taken
         out.update(gnD)
 
         return out

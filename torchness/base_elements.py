@@ -111,3 +111,14 @@ def scaled_cross_entropy(
     return {
         'scaled_cross_entropy': ce * torch.abs(scale),
         'cross_entropy':        ce}
+
+def select_with_indices(
+        source: TNS,
+        indices: TNS,
+) -> TNS:
+    """selects from the (multidimensional dim) source values from the last axis
+    given with indices (dim-1) tensor (int)
+    """
+    indices = torch.unsqueeze(indices, dim=-1)
+    source_selected = torch.gather(source, dim=-1, index=indices)
+    return torch.squeeze(source_selected, dim=-1)
