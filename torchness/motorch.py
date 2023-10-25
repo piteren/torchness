@@ -117,7 +117,7 @@ class MOTorch(ParaSave):
         - seed -> guarantees reproducibility
         - training mode (may be overridden by user)
         - data format / type preparation (to be compatible with Module)
-        - gradient computation
+        - automatic gradient computation switching while inference training
     - implements forward (FWD) call (with __call__)
     - implements backward (BWD) call -> runs gradient computation, clipping and backprop with given data
 
@@ -137,8 +137,7 @@ class MOTorch(ParaSave):
     If all MOTorch params were set with __init__ defaults,
     it would not be possible to distinguish between sources 1 and 4.
 
-    @DynamicAttrs <-- disables warning for unresolved attributes references
-    """
+    @DynamicAttrs <-- disables warning for unresolved attributes references """
 
     MOTORCH_DEFAULTS = {
         'seed':             123,                # seed for torch and numpy
@@ -425,8 +424,9 @@ class MOTorch(ParaSave):
         else:
             out = self._module(*args, **kwargs)
 
+        # eventually roll back to MOTorch default
         if set_training:
-            self.train(False) # eventually roll back to default
+            self.train(False)
 
         return out
 
@@ -456,7 +456,8 @@ class MOTorch(ParaSave):
             **kwargs) -> DTNS:
         """ forward + loss call on NN """
 
-        if set_training is not None: self.train(set_training)
+        if set_training is not None:
+            self.train(set_training)
 
         if not (bypass_data_conv or self.bypass_data_conv):
             args = [self.convert(data=a) for a in args]
@@ -468,7 +469,10 @@ class MOTorch(ParaSave):
         else:
             out = self._module.loss(*args, **kwargs)
 
-        if set_training: self.train(False) # eventually roll back to default
+        # eventually roll back to MOTorch default
+        if set_training:
+            self.train(False)
+
         return out
 
 

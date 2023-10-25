@@ -440,7 +440,7 @@ class EncCNN(torch.nn.Module):
 
         return {
             'out':      output,
-            'state':    torch.concat(states,dim=-3) if states else None,
+            'state':    torch.cat(states,dim=-3) if states else None,
             'zsL':      zsL}
 
 
