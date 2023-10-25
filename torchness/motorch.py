@@ -26,9 +26,8 @@ class MOTorchException(Exception):
 
 class Module(torch.nn.Module):
     """ Module type supported by MOTorch
-    extends torch.nn.Module with some methods like .loss() .get_optimizer()
-    Module supports training functionality with MOTorch
-    (loss() is required by MOTorch.backward() & .run_train())
+    defines computation graph of forward (FWD) and loss
+    accuracy() and f1() are metrics used by MOTorch while training
     """
 
     def __init__(self, logger=None, loglevel=20, **kwargs):
@@ -39,7 +38,7 @@ class Module(torch.nn.Module):
 
 
     def forward(self, *args, **kwargs) -> DTNS:
-        """forward pass function
+        """ forward pass (FWD) function
         returned DTNS should have at least 'logits' key
         with logits tensor for proper MOTorch.run_train()
 
@@ -77,56 +76,66 @@ class Module(torch.nn.Module):
 
 
     def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
-        """If implemented, MOTorch will use returned Optimizer definition - type and kwargs"""
+        """If implemented, MOTorch will use returned Optimizer definition - Optimizer type and Optimizer kwargs"""
         raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
 
 
     def loss(self, *args, **kwargs) -> DTNS:
-        """Exemplary implementation:
+        """ forward + loss function
+        returned DTNS should be: .forward() DTNS updated with loss (and optional acc, f1)
+
+        exemplary implementation:
         out = self(input)                                                                   <- forward DTNS
         logits = out['logits']
         out['loss'] = torch.nn.functional.cross_entropy(logits, labels, reduction='mean')   <- update with loss
         out['acc'] = self.accuracy(logits, labels)                                          <- update with acc
         out['f1'] = self.f1(logits, labels)                                                 <- update with f1
-
-        returned DTNS should be: .forward() DTNS updated with loss (and optional acc, f1)
         """
         raise NotImplementedError
 
 
 class MOTorch(ParaSave):
-    """MOTorch holds Neural Network (Module) and adds some features:
-    - builds given Module
+    """ MOTorch holds Neural Network (NN) computation graph defined by Module
+
+    - builds given graph defined by Module
     - manages MOTorch folder (subfolder of SAVE_TOPDIR named with MOTorch name)
       for all MOTorch data (logs, params, checkpoints), MOTorch supports
       serialization into / from this folder
     - extends ParaSave, manages all init parameters, properly resolves parameters
-      using all possible sources
+      using all possible sources:
+        - defaults of MOTorch
+        - defaults of Module
+        - values saved in folder
+        - values given by user to MOTorch init
     - parameters are kept in self as a Subscriptable to be easily accessed
     - properly resolves and holds name of object, adds stamp if needed
     - implements logger
     - may be read only (prevents save over)
-    - may be called (with __call__) <- runs NN FWD with given data,
-      input data type is checked / changed by MOTorch
-    - may be called BWD with backward() <- runs gradient backprop for given data
-    - manages its train.mode by itself
-    - supports hpmser mode
-    - manages seed and guarantees reproducibility
-    - manages GPU / CPU device used by NN with device: DevicesPypaq parameter
-    - adds TensorBoard support
-    - implements: save / load / copy of whole MOTorch (ParaSave + NN checkpoint)
+
+    - manages:
+        - devices: GPU / CPU with device: DevicesPypaq parameter
+        - seed -> guarantees reproducibility
+        - training mode (may be overridden by user)
+        - data format / type preparation (to be compatible with Module)
+        - gradient computation
+    - implements forward (FWD) call (with __call__)
+    - implements backward (BWD) call -> runs gradient computation, clipping and backprop with given data
+
     - implements baseline training & testing with data loaded to Batcher
+    - adds TensorBoard logging
+    - supports hpmser mode
     - implements GX (genetic crossing)
     - adds some sanity checks
 
     MOTorch defaults are stored in MOTORCH_DEFAULTS dict and cannot be placed in __init__ defaults.
     This is a consequence of the params resolution mechanism in MOTorch,
-    where params may come from three sources, and each subsequent source overrides the previous ones:
-    1. __init__ defaults - only a few of them are considered in ParaSave managed params
-    2. saved in the folder
-    3. provided through kwargs in __init__
+    where params may come from four sources, and each subsequent source overrides the previous ones:
+        1. __init__ defaults - only a few of them are considered in ParaSave managed params
+        2. Module __init__ defaults
+        3. saved in the folder
+        4. provided through kwargs in __init__
     If all MOTorch params were set with __init__ defaults,
-    it would not be possible to distinguish between sources 1 and 3.
+    it would not be possible to distinguish between sources 1 and 4.
 
     @DynamicAttrs <-- disables warning for unresolved attributes references
     """
@@ -388,14 +397,20 @@ class MOTorch(ParaSave):
 
     # **************************************************************************** model call (run NN with data) methods
 
-    # forward call, runs forward on nn.Module (with current nn.Module.training.mode - by default not training)
     def __call__(
             self,
             *args,
             bypass_data_conv=               False,
-            set_training: Optional[bool]=   None,
+            set_training: Optional[bool]=   None,   # for dropout etc
+            no_grad=                        True,   # by default gradients calculation is disabled for FWD call
             **kwargs
     ) -> DTNS:
+        """ forward (FWD) call
+        runs forward on nn.Module, manages:
+        - data type / format preparation
+        - training mode
+        - gradients computation
+        """
 
         if set_training is not None:
             self.train(set_training)
@@ -404,15 +419,20 @@ class MOTorch(ParaSave):
             args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
-        out = self._module(*args, **kwargs)
+        if no_grad:
+            with torch.no_grad():
+                out = self._module(*args, **kwargs)
+        else:
+            out = self._module(*args, **kwargs)
 
         if set_training:
             self.train(False) # eventually roll back to default
 
         return out
 
-    # converts given data to torch.Tensor compatible with self (device,dtype)
+
     def convert(self, data:Any) -> TNS:
+        """ converts given data to torch.Tensor compatible with self (device,dtype) """
 
         # do not convert None
         if type(data) is not None:
@@ -426,13 +446,15 @@ class MOTorch(ParaSave):
 
         return data
 
-    # forward + loss call on NN (with current nn.Module.training.mode - by default not training)
+
     def loss(
             self,
             *args,
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for not None forces given training mode for torch.nn.Module
+            no_grad=                        False,  # by default gradients calculation is enabled for loss call
             **kwargs) -> DTNS:
+        """ forward + loss call on NN """
 
         if set_training is not None: self.train(set_training)
 
@@ -440,38 +462,44 @@ class MOTorch(ParaSave):
             args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
-        out = self._module.loss(*args, **kwargs)
+        if no_grad:
+            with torch.no_grad():
+                out = self._module.loss(*args, **kwargs)
+        else:
+            out = self._module.loss(*args, **kwargs)
 
         if set_training: self.train(False) # eventually roll back to default
         return out
 
-    # backward call on NN, runs loss calculation + update of nn.Module (by default with training.mode = True)
+
     def backward(
             self,
             *args,
             bypass_data_conv=   False,
             set_training: bool= True,   # for backward training mode is set to True by default
             empty_cuda_cache=   False,  # releases all unoccupied cached memory currently held by the caching allocator
-            **kwargs) -> DTNS:
+            **kwargs
+    ) -> DTNS:
+        """ backward call on NN, runs loss calculation + update of Module """
 
         out = self.loss(
             *args,
             bypass_data_conv=   bypass_data_conv,
             set_training=       set_training,
+            no_grad=            False, # True makes no sense with backward()
             **kwargs)
 
         self._opt.zero_grad()               # clear gradients
         out['loss'].backward()              # build gradients
         gnD = self._grad_clipper.clip()     # clip gradients, adds: 'gg_norm' & 'gg_norm_clip' to out
         self._opt.step()                    # apply optimizer
-        self._opt.zero_grad()               # clear gradients
         self._scheduler.step()              # apply LR scheduler
         self.train_step += 1                # update step
 
         if empty_cuda_cache:
             torch.cuda.empty_cache()
 
-        out['currentLR'] = self._scheduler.get_last_lr()[0]         # INFO: currentLR of the first group is taken
+        out['currentLR'] = self._scheduler.get_last_lr()[0] # INFO: currentLR of the first group is taken
         out.update(gnD)
 
         return out
@@ -480,19 +508,21 @@ class MOTorch(ParaSave):
 
     @staticmethod
     def _get_model_dir(save_topdir:str, model_name:str) -> str:
+        """ returns model directory path """
         return f'{save_topdir}/{model_name}'
 
-    # returns path of checkpoint pickle file
     @staticmethod
     def _get_ckpt_path(save_topdir:str, model_name:str) -> str:
+        """ returns path of checkpoint pickle file """
         return f'{MOTorch._get_model_dir(save_topdir, model_name)}/{model_name}.pt'
 
-    # tries to load checkpoint and return additional data
+
     def load_ckpt(
             self,
             save_topdir: Optional[str]= None,  # allows to load from custom save_topdir
             name: Optional[str]=        None,  # allows to load custom name (model_name)
     ) -> Optional[dict]:
+        """ tries to load checkpoint and return additional data """
 
         ckpt_path = MOTorch._get_ckpt_path(
             save_topdir=    save_topdir or self.save_topdir,
@@ -510,13 +540,14 @@ class MOTorch(ParaSave):
 
         return save_obj
 
-    # saves model checkpoint & optionally additional data
+
     def save_ckpt(
             self,
             save_topdir: Optional[str]=         None,   # allows to save in custom save_topdir
             name: Optional[str]=                None,   # allows to save under custom name (model_name)
             additional_data: Optional[Dict]=    None,   # allows to save additional
     ) -> None:
+        """ saves model checkpoint & optionally additional data """
 
         ckpt_path = MOTorch._get_ckpt_path(
             save_topdir=    save_topdir or self.save_topdir,
@@ -527,8 +558,9 @@ class MOTorch(ParaSave):
 
         torch.save(obj=save_obj, f=ckpt_path)
 
-    # saves MOTorch (ParaSave POINT and model checkpoint)
+
     def save(self):
+        """ saves MOTorch (ParaSave POINT and model checkpoint) """
 
         if self.read_only:
             raise MOTorchException('read_only MOTorch cannot be saved!')
@@ -554,7 +586,6 @@ class MOTorch(ParaSave):
             src=    MOTorch._get_ckpt_path(save_topdir_src, name_src),
             dst=    MOTorch._get_ckpt_path(save_topdir_trg, name_trg))
 
-    # copies full MOTorch folder (POINT & checkpoints)
     @classmethod
     def copy_saved(
             cls,
@@ -565,6 +596,7 @@ class MOTorch(ParaSave):
             save_fn_pfx: Optional[str]=     None,
             logger=                         None,
             loglevel=                       30):
+        """ copies full MOTorch folder (POINT & checkpoints) """
 
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
@@ -613,7 +645,6 @@ class MOTorch(ParaSave):
             ratio=          ratio,
             noise=          noise)
 
-    # performs GX on saved MOTorch (without even building child objects)
     @classmethod
     def gx_saved(
             cls,
@@ -630,6 +661,7 @@ class MOTorch(ParaSave):
             logger=                                 None,
             loglevel=                               30,
     ) -> None:
+        """ performs GX on saved MOTorch (without even building child objects) """
 
         if not save_topdir_parent_main: save_topdir_parent_main = cls.SAVE_TOPDIR
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
@@ -672,7 +704,6 @@ class MOTorch(ParaSave):
 
     # ***************************************************************************************************** train / test
 
-    # converts and loads data to Batcher
     def load_data(
             self,
             data_TR: Dict[str,np.ndarray],
@@ -680,6 +711,7 @@ class MOTorch(ParaSave):
             data_TS: Optional[Dict[str,np.ndarray]]=    None,
             split_VL: float=                            0.0,
             split_TS: float=                            0.0):
+        """ converts and loads data to Batcher """
 
         data_TR = {k: self.convert(data_TR[k]) for k in data_TR}
         if data_VL:
@@ -698,7 +730,7 @@ class MOTorch(ParaSave):
             seed=           self.seed,
             logger=         get_child(self._log, 'Batcher'))
 
-    # trains model, returns optional test score
+
     def run_train(
             self,
             data_TR: Dict[str,np.ndarray],  # INFO: it will also accept Dict[str,torch.Tensor] :) !
@@ -712,6 +744,7 @@ class MOTorch(ParaSave):
             save_max=                                   True,   # allows to save model while training (after max test)
             use_F1=                                     True,   # uses F1 as a train/test score (not acc)
         ) -> Optional[float]:
+        """ trains model, returns optional test score """
 
         if data_TR:
             self.load_data(
@@ -836,13 +869,18 @@ class MOTorch(ParaSave):
 
         return ts_score_fin
 
-    # tests model, returns: optional loss (average), optional accuracy, optional F1
-    # optional loss <- since there may be not TS batches
+
     def run_test(
             self,
             data: Optional[Dict[str,np.ndarray]]=   None,
             split_TS: float=                        1.0, # if data for test will be given above, by default MOTorch will be tested on ALL
     ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """ tests model
+        returns:
+            - optional loss (average)
+            - optional accuracy, optional F1
+            - optional loss <- since there may be not TS batches
+        """
 
         if data:
             self.load_data(data_TR=data, split_TS=split_TS)
@@ -869,8 +907,8 @@ class MOTorch(ParaSave):
 
     # *********************************************************************************************** other / properties
 
-    # updates scheduler baseLR of 0 group
     def update_baseLR(self, lr: float):
+        """ updates scheduler baseLR of 0 group """
         self.baseLR = lr
         self._scheduler.update_base_lr0(lr)
 
@@ -879,18 +917,20 @@ class MOTorch(ParaSave):
         return self._module
 
     def train(self, mode:bool=True):
+
         return self._module.train(mode)
 
     @property
     def tbwr(self):
         return self._TBwr
 
-    # logs value to TB
+
     def log_TB(
             self,
             value,
             tag: str,
             step: int) -> None:
+        """ logs value to TB """
         if self.do_TB: self._TBwr.add(value=value, tag=tag, step=step)
         else: self._log.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
 
