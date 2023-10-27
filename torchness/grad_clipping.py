@@ -1,21 +1,22 @@
-from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.lipytools.moving_average import MovAvg
+from pypaq.pytypes import NUM, NPL
 import torch
 from typing import Optional
 
 
-# copied & refactored from torch.nn.utils.clip_grad.py, used by GradClipperAVT
 def clip_grad_norm_(
-        parameters,
-        max_norm: float,
-        norm_type: float=   2.0,
-        do_clip: bool=      True, # disables clipping (just GN calculations)
-) -> float:
+        parameters: NPL,
+        max_norm: NUM,
+        norm_type: NUM= 2.0,
+        do_clip: bool=  True, # disables clipping (just GN calculations)
+) -> NUM:
+    """ clips (scales) gradients of given parameters
+    copied & refactored from torch.nn.utils.clip_grad.py
+    returns norm of original parameters
+    """
 
     if isinstance(parameters, torch.Tensor): parameters = [parameters]
     parameters = [p for p in parameters if p.grad is not None]
-    max_norm = float(max_norm)
-    norm_type = float(norm_type)
     if len(parameters) == 0: return 0.0
 
     device = parameters[0].grad.device
@@ -31,58 +32,23 @@ def clip_grad_norm_(
         for p in parameters:
             p.grad.detach().mul_(clip_coef_clamped.to(p.grad.device))
 
-    return float(total_norm.cpu().numpy())
-
-# gradient clipping class, clips gradients by clip_value or gg_avt_norm (computed with averaging window)
-class GradClipperAVT:
-
-    def __init__(
-            self,
-            module: torch.nn.Module,
-            clip_value: Optional[float]=    None,   # clipping value, for None clips with avt
-            avt_SVal: float=                0.1,    # start value for AVT (smaller value makes gradients warm-up)
-            avt_window: int=                100,    # width of averaging window (number of steps)
-            avt_max_upd: float=             1.5,    # max factor of gg_avt_norm to update with
-            do_clip: bool=                  True,   # disables clipping (just GN calculations)
-            logger=                         None):
-
-        if not logger: logger = get_pylogger(name='ScaledLR')
-        self._log = logger
-
-        self.module = module
-        self.clip_value = clip_value
-        self.gg_avt_norm = avt_SVal
-        self.avt_window = avt_window
-        self.avt_max_upd = avt_max_upd
-        self.do_clip = do_clip
+    return total_norm
 
 
-    def clip(self):
-
-        gg_norm = clip_grad_norm_(
-            parameters= self.module.parameters(),
-            max_norm=   self.clip_value or self.gg_avt_norm,
-            do_clip=    self.do_clip)
-
-        # in case of gg_norm explodes we want to update self.gg_avt_norm with value of self.avt_max_upd * self.gg_avt_norm
-        avt_update = min(gg_norm, self.avt_max_upd * self.gg_avt_norm)
-        self.gg_avt_norm = (self.gg_avt_norm * (self.avt_window-1) + avt_update) / self.avt_window # update
-        self._log.debug(f'clipped with: gg_avt_norm({self.gg_avt_norm})')
-
-        return {
-            'gg_norm':      gg_norm,
-            'gg_avt_norm':  self.gg_avt_norm}
-
-# gradient clipping class, clips gradients by clip_value or gg_norm_mavg (computed with moving average)
 class GradClipperMAVG:
+    """ clips gradients of parameters of given Module
+    with value:
+    - given OR
+    - updated with MovAvg
+    """
 
     def __init__(
             self,
             module: torch.nn.Module,
             clip_value: Optional[float]=    None,   # clipping value, for None clips with mavg
-            factor=                         0.01,
+            factor: float=                  0.01,
             first_avg=                      True,   # use averaging @start
-            start_val=                      0.1,    # use this value @start (for first clip..)
+            start_val: float=               0.1,    # use this value @start (for first clip..)
             max_upd: float=                 1.5,    # max factor of gg_mavg to update with
             do_clip: bool=                  True):  # disables clipping (just GN calculations)
 

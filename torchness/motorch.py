@@ -155,7 +155,7 @@ class MOTorch(ParaSave):
         'ann_base':         None,
         'ann_step':         1.0,
         'n_wup_off':        2.0,
-            # gradients clipping parameters (check torchness.base_elements.GradClipperMAVG)
+            # gradients clipping parameters (check torchness.grad_clipping.GradClipperMAVG)
         'gc_factor':        0.01,
         'gc_first_avg':     True,
         'gc_start_val':     0.1,
