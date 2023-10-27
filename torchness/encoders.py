@@ -75,7 +75,7 @@ class LayBlockDRT(torch.nn.Module):
         out = self.ln_in(inp)
 
         out = self.denses[0](out)
-        zsL = [zeroes(out)]
+        zs = zeroes(out)
 
         if len(self.denses) > 1: # there is second one, without activation
 
@@ -91,8 +91,8 @@ class LayBlockDRT(torch.nn.Module):
             out = self.res(inp=out, bypass=inp)
 
         return {
-            'out':  out,
-            'zsL':  zsL}
+            'out':      out,
+            'zeroes':   zs}
 
 
 # Deep Residual encoder based on stacked LayBlockDRT
@@ -170,11 +170,11 @@ class EncDRT(torch.nn.Module):
         for drt_lay in self.drt_lays:
             lay_out = drt_lay(out)
             out = lay_out['out']
-            zsL += lay_out['zsL']
+            zsL.append(lay_out['zeroes'])
 
         return {
-            'out':  out,
-            'zsL':  zsL}
+            'out':      out,
+            'zeroes':   torch.cat(zsL)}
 
 
 # Block (Layer) of EncCNN (LN > CNN > act > drop > RES > LayBlockDRT), number of parameters: kernel*in_features*n_filters
@@ -317,12 +317,12 @@ class LayBlockCNN(torch.nn.Module):
         if self.lay_DRT:
             lay_out = self.lay_DRT(out)
             out = lay_out['out']
-            zsL += lay_out['zsL']
+            zsL.append(lay_out['zeroes'])
 
         return {
             'out':      out,
             'state':    state,
-            'zsL':      zsL}
+            'zeroes':   torch.cat(zsL)}
 
 
 # CNN 1D Encoder (for sequences), number of parameters: projection + n_layers*LayBlockCNN
@@ -434,14 +434,14 @@ class EncCNN(torch.nn.Module):
             output = block_out['out']
             if block_out['state'] is not None:
                 states.append(torch.unsqueeze(block_out['state'], dim=-3))
-            zsL += block_out['zsL']
+            zsL.append(block_out['zeroes'])
 
         output = self.out_ln(output)
 
         return {
             'out':      output,
             'state':    torch.cat(states,dim=-3) if states else None,
-            'zsL':      zsL}
+            'zeroes':   torch.cat(zsL)}
 
 
 # QKV_linear_projection + QKV_scaled_dot_product_attention + linear_out_projection
@@ -649,7 +649,7 @@ class EncTNS(torch.nn.Module):
         for mod in self.layers:
             block_out = mod(inp=output, inp_mask=mask)
             output = block_out['out']
-            zsL += block_out['zsL']
+            zsL.append(block_out['zeroes'])
 
         # pass through task-attention layers
         if self.layers_TAT:
@@ -669,7 +669,7 @@ class EncTNS(torch.nn.Module):
             for mod in self.layers_TAT:
                 block_out = mod(inp=seq, task_query=task_query, inp_mask=mask)
                 task_query = block_out['out']
-                zsL += block_out['zsL']
+                zsL.append(block_out['zeroes'])
             output = torch.flatten(task_query,-2,-1) # remove seq (-2) dimension of size 1
 
         output = self.norm(output)
@@ -679,8 +679,8 @@ class EncTNS(torch.nn.Module):
             output = output.view(orig_shape)
 
         return {
-            'out':  output,
-            'zsL':  zsL}
+            'out':      output,
+            'zeroes':   torch.cat(zsL)}
 
     # pyramidal_encoding
     def _encode_pyramidal(self, inp:TNS, pyramide: Union[Tuple[int],int]) -> DTNS:
@@ -694,10 +694,10 @@ class EncTNS(torch.nn.Module):
             outL = [self._encode(inp=i) for i in in_split]
             inp = [o['out'] for o in outL]
             inp = torch.stack(inp, dim=0)
-            zsLL = [o['zsL'] for o in outL]
-            zsL += [e for el in zsLL for e in el]
+            zsL += [o['zeroes'] for o in outL]
         out = self._encode(inp)
-        out['zsL'] += zsL
+        zsL.append(out['zeroes'])
+        out['zeroes'] = torch.cat(zsL)
         return out
 
     def forward(

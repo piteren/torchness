@@ -46,10 +46,11 @@ class GradClipperMAVG:
             self,
             module: torch.nn.Module,
             clip_value: Optional[float]=    None,   # clipping value, for None clips with mavg
-            factor: float=                  0.01,
+            factor: NUM=                    0.01,   # MovAvg factor
             first_avg=                      True,   # use averaging @start
-            start_val: float=               0.1,    # use this value @start (for first clip..)
-            max_upd: float=                 1.5,    # max factor of gg_mavg to update with
+            start_val: NUM=                 0.1,    # use this value @start (for first clip..)
+            max_val: Optional[NUM]=         None,   # max value of gg_mavg
+            max_upd: NUM=                   1.5,    # max factor of gg_mavg to update with
             do_clip: bool=                  True):  # disables clipping (just GN calculations)
 
         self.module = module
@@ -57,6 +58,7 @@ class GradClipperMAVG:
 
         self._gg_norm_mavg = MovAvg(factor=factor, first_avg=first_avg)
         self._gg_norm_mavg.upd(start_val)
+        self._gg_norm_mavg_max = max_val
 
         self.max_upd = max_upd
         self.do_clip = do_clip
@@ -64,9 +66,13 @@ class GradClipperMAVG:
     # clip & update parameters
     def clip(self):
 
+        gg_norm_mavg = self._gg_norm_mavg()
+        if self._gg_norm_mavg_max and gg_norm_mavg > self._gg_norm_mavg_max:
+            gg_norm_mavg = self._gg_norm_mavg_max
+
         gg_norm = clip_grad_norm_(
             parameters= self.module.parameters(),
-            max_norm=   self.clip_value or self._gg_norm_mavg(),
+            max_norm=   self.clip_value or gg_norm_mavg,
             do_clip=    self.do_clip)
 
         avt_update = min(gg_norm, self.max_upd * self._gg_norm_mavg()) # max value of update

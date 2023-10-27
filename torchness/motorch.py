@@ -159,6 +159,7 @@ class MOTorch(ParaSave):
         'gc_factor':        0.01,
         'gc_first_avg':     True,
         'gc_start_val':     0.1,
+        'gc_max_val':       None,
         'gc_max_upd':       1.5,
         'do_clip':          False,
             # other
@@ -378,6 +379,7 @@ class MOTorch(ParaSave):
             factor=         self.gc_factor,
             first_avg=      self.gc_first_avg,
             start_val=      self.gc_start_val,
+            max_val=        self.gc_max_val,
             max_upd=        self.gc_max_upd,
             do_clip=        self.do_clip)
 

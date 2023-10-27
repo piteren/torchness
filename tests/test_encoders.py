@@ -18,7 +18,7 @@ class TestEncoders(unittest.TestCase):
         out = lay_drt(inp)
         print(out)
         self.assertTrue(out['out'].shape[-1] == in_width)
-        self.assertTrue(out['zsL'][0].shape[-1] == in_width)
+        self.assertTrue(out['zeroes'].shape[-1] == in_width)
 
 
     def test_LayBlockDRT_kwargs(self):
@@ -36,7 +36,7 @@ class TestEncoders(unittest.TestCase):
         out = lay_drt(inp)
         print(out)
         self.assertTrue(out['out'].shape[-1] == in_width)
-        self.assertTrue(out['zsL'][0].shape[-1] == in_width * 4)
+        self.assertTrue(out['zeroes'].shape[-1] == in_width * 4)
 
 
     def test_LayBlockDRT_device(self):
@@ -81,19 +81,19 @@ class TestEncoders(unittest.TestCase):
         inp = torch.rand(in_width) - 0.5
         print(inp, inp.dtype)
 
-        enc_drt = EncDRT(in_width, shared_lays=True, dns_scale=4)
+        enc_drt = EncDRT(in_width, n_layers=6, shared_lays=True, dns_scale=4)
         print(enc_drt)
         self.assertTrue(len(list(enc_drt.children())) == 2) # ln_in, shared LayDRT
         out = enc_drt(inp)
         print(out)
-        self.assertTrue(out['zsL'][0].shape[-1] == in_width*4)
+        self.assertTrue(out['zeroes'].shape[0] == 6*in_width*4)
 
-        enc_drt = EncDRT(in_width, lay_width=2*in_width, dns_scale=3)
+        enc_drt = EncDRT(in_width, n_layers=5, lay_width=2*in_width, dns_scale=3)
         print(enc_drt)
-        self.assertTrue(len(list(enc_drt.children())) == 8) # projection, ln_in, 6 * LayDRT
+        self.assertTrue(len(list(enc_drt.children())) == 7) # projection, ln_in, 5 * LayDRT
         out = enc_drt(inp)
         print(out)
-        self.assertTrue(out['zsL'][0].shape[-1] == in_width*3*2)
+        self.assertTrue(out['zeroes'].shape[0] == 5*2*in_width*3)
 
         enc_drt = EncDRT(
             in_width=       in_width,
@@ -110,8 +110,7 @@ class TestEncoders(unittest.TestCase):
         inp = inp.to(torch.double)
         out = enc_drt(inp)
         print(out)
-        self.assertTrue(len(out['zsL']) == 4) # 4 layers
-        self.assertTrue(out['zsL'][0].shape[-1] == 16*3) # lay_width * dns_scale
+        self.assertTrue(out['zeroes'].shape[0] == 4*16*3)
 
         enc_drt.to(torch.float)
         self.assertRaises(RuntimeError, enc_drt, inp) # expected scalar type Double but found Float
@@ -300,14 +299,14 @@ class TestEncoders(unittest.TestCase):
         print(lay_tns)
         out = lay_tns(inp)
         print(out['out'].shape)
-        print(out['zsL'][0].shape)
+        print(out['zeroes'].shape)
 
         # TAT
         query = torch.mean(inp, dim=-2, keepdim=True)
         print(query.shape)
         out = lay_tns(inp, task_query=query)
         print(out['out'].shape)
-        print(out['zsL'][0].shape)
+        print(out['zeroes'].shape)
 
 
     def test_EncTNS_base(self):
@@ -320,7 +319,7 @@ class TestEncoders(unittest.TestCase):
         self.assertTrue(enc.pos_emb is None)
         print(enc)
         out = enc(inp)
-        print(out['out'].shape, len(out['zsL']))
+        print(out['out'].shape, out['zeroes'].shape)
 
 
     def test_EncTNS_PE(self):
