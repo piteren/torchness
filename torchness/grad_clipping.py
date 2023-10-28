@@ -1,5 +1,6 @@
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pytypes import NUM, NPL
+from pypaq.lipytools.pylogger import get_pylogger
 import torch
 from typing import Optional
 
@@ -36,29 +37,29 @@ def clip_grad_norm_(
 
 
 class GradClipperMAVG:
-    """ clips gradients of parameters of given Module
-    with value:
-    - given OR
-    - updated with MovAvg
-    """
+    """ clips gradients of parameters of given Module with MovAvg va;u e"""
 
     def __init__(
             self,
             module: torch.nn.Module,
-            clip_value: Optional[float]=    None,   # clipping value, for None clips with mavg
-            factor: NUM=                    0.01,   # MovAvg factor
-            first_avg=                      True,   # use averaging @start
-            start_val: NUM=                 0.1,    # use this value @start (for first clip..)
-            max_val: Optional[NUM]=         None,   # max value of gg_mavg
-            max_upd: NUM=                   1.5,    # max factor of gg_mavg to update with
-            do_clip: bool=                  True):  # disables clipping (just GN calculations)
+            start_val: NUM=             0.1,    # MovAvg start value
+            factor: NUM=                0.01,   # MovAvg factor
+            first_avg=                  True,   # use MovAvg start averaging
+            max_clip: Optional[NUM]=    None,   # clipping value won't go higher
+            max_upd: NUM=               1.5,    # max factor of gg_mavg to update with
+            do_clip: bool=              True,   # disables clipping (just GN calculations)
+            logger=                     None,
+            loglevel=                   20,
+    ):
+        if not logger:
+            logger = get_pylogger(level=loglevel)
+        self.logger = logger
 
         self.module = module
-        self.clip_value = clip_value
 
-        self._gg_norm_mavg = MovAvg(factor=factor, first_avg=first_avg)
-        self._gg_norm_mavg.upd(start_val)
-        self._gg_norm_mavg_max = max_val
+        self.mavg = MovAvg(factor=factor, first_avg=first_avg)
+        self.mavg.upd(start_val)
+        self.max_clip = max_clip
 
         self.max_upd = max_upd
         self.do_clip = do_clip
@@ -66,22 +67,29 @@ class GradClipperMAVG:
     # clip & update parameters
     def clip(self):
 
-        gg_norm_mavg = self._gg_norm_mavg()
-        if self._gg_norm_mavg_max and gg_norm_mavg > self._gg_norm_mavg_max:
-            gg_norm_mavg = self._gg_norm_mavg_max
+        gg_norm_clip = self.gg_norm_clip
+        self.logger.debug(f'gg_norm_clip: {gg_norm_clip}')
+
+        max_norm = gg_norm_clip
+        if self.max_clip and max_norm > self.max_clip:
+            max_norm = self.max_clip
+        self.logger.debug(f'max_norm: {max_norm}')
 
         gg_norm = clip_grad_norm_(
             parameters= self.module.parameters(),
-            max_norm=   self.clip_value or gg_norm_mavg,
+            max_norm=   max_norm,
             do_clip=    self.do_clip)
+        self.logger.debug(f'gg_norm: {gg_norm}')
 
-        avt_update = min(gg_norm, self.max_upd * self._gg_norm_mavg()) # max value of update
-        gg_norm_clip = self._gg_norm_mavg.upd(avt_update)
+        mavg_update = min(gg_norm, gg_norm_clip * self.max_upd )
+        # do not update when both are higher
+        if not self.max_clip or self.max_clip and not (mavg_update > self.max_clip and gg_norm_clip > self.max_clip):
+            self.mavg.upd(mavg_update)
 
         return {
             'gg_norm':      gg_norm,
-            'gg_norm_clip': gg_norm_clip}
+            'gg_norm_clip': self.gg_norm_clip}
 
     @property
     def gg_norm_clip(self):
-        return self._gg_norm_mavg()
+        return self.mavg()
