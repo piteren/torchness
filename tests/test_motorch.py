@@ -47,6 +47,7 @@ class LinModel(Module):
         out['acc'] = self.accuracy(out['logits'], lbl)  # using baseline
         return out
 
+
 class LinModelOpt(LinModel):
 
     def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:

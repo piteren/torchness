@@ -375,13 +375,14 @@ class MOTorch(ParaSave):
             logger=         get_child(self._log, 'ScaledLR'))
 
         self._grad_clipper = GradClipperMAVG(
+            do_clip=        self.gc_do_clip,
             module=         self._module,
             start_val=      self.gc_start_val,
             factor=         self.gc_factor,
             first_avg=      self.gc_first_avg,
-            max_clip=       self.gc_max_val,
+            max_clip=       self.gc_max_clip,
             max_upd=        self.gc_max_upd,
-            do_clip=        self.gc_do_clip)
+            logger=         get_child(self._log, 'GradClipperMAVG'))
 
         # MOTorch by default is not in training mode
         self.train(False)
