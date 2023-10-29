@@ -4,6 +4,7 @@ from sklearn.metrics import f1_score
 import torch
 from typing import Optional, Dict, Tuple, Any
 
+from pypaq.pytypes import NUM
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.files import prep_folder
 from pypaq.lipytools.pylogger import get_pylogger, get_child
@@ -48,27 +49,20 @@ class Module(torch.nn.Module):
         raise NotImplementedError
 
     # noinspection PyMethodMayBeStatic
-    def accuracy(self, logits:TNS, labels:TNS) -> float:
-        """baseline accuracy implementation for logits & lables
-        """
-        logits = logits.detach().cpu().numpy()
-        preds = np.argmax(logits, axis=-1)
-        labels = labels.cpu().numpy()
-        return float(np.average(np.equal(preds, labels)))
+    def accuracy(self, logits:TNS, labels:TNS) -> NUM:
+        """ baseline accuracy implementation for logits & lables """
+        return torch.equal(torch.argmax(logits, dim=-1), labels).mean()
 
     # noinspection PyMethodMayBeStatic
     def f1(self, logits:TNS, labels:TNS, average='weighted') -> float:
-        """baseline F1 implementation for logits & lables
+        """ baseline F1 implementation for logits & lables
         correctly supports average (since test while training may be run in batches):
             micro (per sample)
             macro (per class)
-            weighted (per class weighted by support)
-        """
-        logits = logits.detach().cpu().numpy()
-        preds = np.argmax(logits, axis=-1)
-        labels = labels.cpu().numpy()
+            weighted (per class weighted by support) """
+        preds = torch.argmax(logits, dim=-1).cpu().numpy()
         return f1_score(
-            y_true=         labels,
+            y_true=         labels.cpu().numpy(),
             y_pred=         preds,
             average=        average,
             labels=         np.unique(preds),
@@ -76,7 +70,7 @@ class Module(torch.nn.Module):
 
 
     def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
-        """If implemented, MOTorch will use returned Optimizer definition - Optimizer type and Optimizer kwargs"""
+        """ If implemented, MOTorch will use returned Optimizer definition - Optimizer type and Optimizer kwargs """
         raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
 
 
@@ -89,8 +83,7 @@ class Module(torch.nn.Module):
         logits = out['logits']
         out['loss'] = torch.nn.functional.cross_entropy(logits, labels, reduction='mean')   <- update with loss
         out['acc'] = self.accuracy(logits, labels)                                          <- update with acc
-        out['f1'] = self.f1(logits, labels)                                                 <- update with f1
-        """
+        out['f1'] = self.f1(logits, labels)                                                 <- update with f1 """
         raise NotImplementedError
 
 
