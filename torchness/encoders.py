@@ -6,8 +6,8 @@ from torchness.base_elements import bert_initializer, my_initializer, TorchnessE
 from torchness.layers import LayDense, TF_Dropout, LayConv1D, LayRES, zeroes
 
 
-# Block (Layer) of EncDRT (LN > Dense or two_with_drop_in_between > drop > RES with drop)
 class LayBlockDRT(torch.nn.Module):
+    """ Block (Layer) of EncDRT (LN > Dense or two_with_drop_in_between > drop > RES with drop) """
 
     def __init__(
             self,
@@ -95,8 +95,8 @@ class LayBlockDRT(torch.nn.Module):
             'zeroes':   zs}
 
 
-# Deep Residual encoder based on stacked LayBlockDRT
 class EncDRT(torch.nn.Module):
+    """ Deep Residual encoder based on stacked LayBlockDRT """
 
     def __init__(
             self,
@@ -177,8 +177,9 @@ class EncDRT(torch.nn.Module):
             'zeroes':   torch.cat(zsL)}
 
 
-# Block (Layer) of EncCNN (LN > CNN > act > drop > RES > LayBlockDRT), number of parameters: kernel*in_features*n_filters
 class LayBlockCNN(torch.nn.Module):
+    """ Block (Layer) of EncCNN (LN > CNN > act > drop > RES > LayBlockDRT)
+    number of parameters: kernel*in_features*n_filters """
 
     def __init__(
             self,
@@ -243,13 +244,13 @@ class LayBlockCNN(torch.nn.Module):
             dtype=          self.dtype,
             initializer=    initializer) if do_ldrt else None
 
-    # prepares baseline 2-dim zero_history
     def _get_zero_history_base(self) -> TNS:
+        """ prepares baseline 2-dim zero_history """
         in_sh = [self.kernel_size-1, self.n_filters]
         return torch.zeros(in_sh).to(self.device, self.dtype)
 
-    # prepares initial history for casual mode, history has shape [.., kernel_size-1, n_filters]
     def get_zero_history(self, inp:Optional[TNS]=None) -> TNS:
+        """ prepares initial history for casual mode, history has shape [.., kernel_size-1, n_filters] """
         zhb = self._get_zero_history_base()
         if inp is None: return zhb
         else:           return zhb.expand(list(inp.shape)[:-2] + list(zhb.shape))
@@ -257,8 +258,8 @@ class LayBlockCNN(torch.nn.Module):
 
     def forward(
             self,
-            inp: TNS, # INFO: at least 2-dim tensor: [.., seq, feats]
-            history: Optional[TNS]= None # INFO: history must be given (even zero_history) for casual mode
+            inp: TNS,                       # INFO: at least 2-dim tensor: [.., seq, feats]
+            history: Optional[TNS]= None,   # INFO: history must be given (even zero_history) for casual mode
     ) -> DTNS:
 
         zsL = []
@@ -325,8 +326,9 @@ class LayBlockCNN(torch.nn.Module):
             'zeroes':   torch.cat(zsL)}
 
 
-# CNN 1D Encoder (for sequences), number of parameters: projection + n_layers*LayBlockCNN
 class EncCNN(torch.nn.Module):
+    """ CNN 1D Encoder (for sequences)
+    number of parameters: projection + n_layers*LayBlockCNN """
 
     def __init__(
             self,
@@ -444,8 +446,8 @@ class EncCNN(torch.nn.Module):
             'zeroes':   torch.cat(zsL)}
 
 
-# QKV_linear_projection + QKV_scaled_dot_product_attention + linear_out_projection
 class MyMHA(torch.nn.MultiheadAttention):
+    """ QKV_linear_projection + QKV_scaled_dot_product_attention + linear_out_projection """
 
     # replaces xavier with bert_initializer
     def _reset_parameters(self):
@@ -467,8 +469,9 @@ class MyMHA(torch.nn.MultiheadAttention):
             bert_initializer(self.bias_v)
 
 
-# Block (Layer) of EncTNS (based on torch.nn.modules.transformer.TransformerEncoderLayer)
 class LayBlockTNS(torch.nn.Module):
+    """ Block (Layer) of EncTNS
+    based on torch.nn.modules.transformer.TransformerEncoderLayer """
 
     def __init__(
             self,
@@ -549,8 +552,11 @@ class LayBlockTNS(torch.nn.Module):
         return self.lay_drt(x)
 
 
-# Transformer Encoder (based on torch.nn.modules.transformer.TransformerEncoder), with TAT option and some others
 class EncTNS(torch.nn.Module):
+    """ Transformer Encoder
+    based on torch.nn.modules.transformer.TransformerEncoder
+    + Task Attention Transformer (TAT)
+    + pyramidal encoding """
 
     def __init__(
             self,
@@ -627,8 +633,8 @@ class EncTNS(torch.nn.Module):
             device=             device,
             dtype=              dtype)
 
-    # base Transformer encoding
     def _encode(self, inp:TNS, mask:Optional[TNS]=None) -> DTNS:
+        """ base Transformer encoding """
 
         output = inp
 
@@ -682,8 +688,8 @@ class EncTNS(torch.nn.Module):
             'out':      output,
             'zeroes':   torch.cat(zsL)}
 
-    # pyramidal_encoding
     def _encode_pyramidal(self, inp:TNS, pyramide: Union[Tuple[int],int]) -> DTNS:
+        """ pyramidal_encoding """
 
         if type(pyramide) is int: pyramide = (pyramide,)
 

@@ -38,20 +38,22 @@ class ZeroesProcessor:
                 return iv_nane
             zeroes = torch.cat(zeroes)
 
-        self.single.append(torch.mean(zeroes, dtype=torch.float32))
+        with torch.no_grad():
 
-        if len(self.single) == self.intervals[0]:
-            iv_nane[1] = torch.Tensor(self.single).mean()
-            self.single = []
+            self.single.append(torch.mean(zeroes, dtype=torch.float32))
 
-        for k in self.zsDL:
-            self.zsDL[k].append(zeroes)
-            if len(self.zsDL[k]) == k:
-                stacked = torch.stack(self.zsDL[k], dim=0)
-                mean = torch.mean(stacked, dim=0, dtype=torch.float32)  # mean along 0 axis (averages non activated over k)
-                clipped = (mean==1).to(torch.float32)                   # where average over k is 1 leave 1, else 0
-                iv_nane[k] = clipped.mean()                             # factor of neurons not activated (1) over k
-                self.zsDL[k] = []                                       # reset
+            if len(self.single) == self.intervals[0]:
+                iv_nane[1] = torch.Tensor(self.single).mean()
+                self.single = []
+
+            for k in self.zsDL:
+                self.zsDL[k].append(zeroes)
+                if len(self.zsDL[k]) == k:
+                    stacked = torch.stack(self.zsDL[k], dim=0)
+                    mean = torch.mean(stacked, dim=0, dtype=torch.float32)  # mean along 0 axis (averages non activated over k)
+                    clipped = (mean==1).to(torch.float32)                   # where average over k is 1 leave 1, else 0
+                    iv_nane[k] = clipped.mean()                             # factor of neurons not activated (1) over k
+                    self.zsDL[k] = []                                       # reset
 
         if self.tbwr:
             for k in iv_nane:

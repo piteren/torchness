@@ -190,9 +190,18 @@ class PositionalEncoding(torch.nn.Module):
         return x
 
 
-# returns [0,1] Tensor: 1 where inp not activated (value =< 0), looks at last dimension / features
-def zeroes(inp:TNS) -> TNS:
-    activated = (inp > 0).to(int)
-    axes = list(range(len(inp.shape)))[:-1]  # all but last(feats) axes indexes list like: [0,1,2] for 4d shape
-    activated_reduced = torch.sum(activated, dim=axes) if axes else activated  # 1 or more for activated, 0 for not activated, if not axes -> we have only-feats-tensor-case
-    return (activated_reduced == 0).to(int)
+def zeroes(inp:TNS, no_grad=True) -> TNS:
+    """ returns [0,1] Tensor: 1 where inp not activated (value =< 0)
+    looks at last dimension / features """
+
+    def _compute(inp:TNS) -> TNS:
+        activated = (inp > 0).to(int)
+        axes = list(range(len(inp.shape)))[:-1]  # all but last(feats) axes indexes list like: [0,1,2] for 4d shape
+        activated_reduced = torch.sum(activated, dim=axes) if axes else activated  # 1 or more for activated, 0 for not activated, if not axes -> we have only-feats-tensor-case
+        return (activated_reduced == 0).to(int)
+
+    if no_grad:
+        with torch.no_grad():
+            return _compute(inp)
+    else:
+        return _compute(inp)
