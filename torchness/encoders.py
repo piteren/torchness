@@ -92,7 +92,7 @@ class LayBlockDRT(torch.nn.Module):
 
         return {
             'out':      out,
-            'zeroes':   zs}
+            'zeroes':   zs.detach()}
 
 
 class EncDRT(torch.nn.Module):
@@ -174,7 +174,7 @@ class EncDRT(torch.nn.Module):
 
         return {
             'out':      out,
-            'zeroes':   torch.cat(zsL)}
+            'zeroes':   torch.cat(zsL).detach()}
 
 
 class LayBlockCNN(torch.nn.Module):
@@ -197,6 +197,7 @@ class LayBlockCNN(torch.nn.Module):
             ldrt_residual: bool=        True,
             ldrt_res_dropout: float=    0.0,
             # other
+            detach_history: bool=       True,           # by default state (history) will be detached on output
             device=                     None,
             dtype=                      None,
             initializer: INI=           None):
@@ -244,6 +245,8 @@ class LayBlockCNN(torch.nn.Module):
             dtype=          self.dtype,
             initializer=    initializer) if do_ldrt else None
 
+        self.detach_history = detach_history
+
     def _get_zero_history_base(self) -> TNS:
         """ prepares baseline 2-dim zero_history """
         in_sh = [self.kernel_size-1, self.n_filters]
@@ -255,11 +258,10 @@ class LayBlockCNN(torch.nn.Module):
         if inp is None: return zhb
         else:           return zhb.expand(list(inp.shape)[:-2] + list(zhb.shape))
 
-
     def forward(
             self,
             inp: TNS,                       # INFO: at least 2-dim tensor: [.., seq, feats]
-            history: Optional[TNS]= None,   # INFO: history must be given (even zero_history) for casual mode
+            history: Optional[TNS]= None,   # INFO: history must be given for casual mode
     ) -> DTNS:
 
         zsL = []
@@ -320,10 +322,13 @@ class LayBlockCNN(torch.nn.Module):
             out = lay_out['out']
             zsL.append(lay_out['zeroes'])
 
+        if state is not None and self.detach_history:
+            state = state.detach()
+
         return {
             'out':      out,
             'state':    state,
-            'zeroes':   torch.cat(zsL)}
+            'zeroes':   torch.cat(zsL).detach()}
 
 
 class EncCNN(torch.nn.Module):
@@ -352,6 +357,7 @@ class EncCNN(torch.nn.Module):
             ldrt_residual: bool=        True,
             ldrt_res_dropout: float=    0.0,
             # other
+            detach_history: bool=       True,  # by default state (history) will be detached on output
             device=                     None,
             dtype=                      None,
             initializer: INI=           None):
@@ -394,6 +400,7 @@ class EncCNN(torch.nn.Module):
             ldrt_drop=          ldrt_drop,
             ldrt_residual=      ldrt_residual,
             ldrt_res_dropout=   ldrt_res_dropout,
+            detach_history=     detach_history,
             device=             self.device,
             dtype=              self.dtype,
             initializer=        initializer) for _ in range(num_blocks_to_build)]
@@ -443,7 +450,7 @@ class EncCNN(torch.nn.Module):
         return {
             'out':      output,
             'state':    torch.cat(states,dim=-3) if states else None,
-            'zeroes':   torch.cat(zsL)}
+            'zeroes':   torch.cat(zsL).detach()}
 
 
 class MyMHA(torch.nn.MultiheadAttention):
@@ -686,7 +693,7 @@ class EncTNS(torch.nn.Module):
 
         return {
             'out':      output,
-            'zeroes':   torch.cat(zsL)}
+            'zeroes':   torch.cat(zsL).detach()}
 
     def _encode_pyramidal(self, inp:TNS, pyramide: Union[Tuple[int],int]) -> DTNS:
         """ pyramidal_encoding """
@@ -703,7 +710,7 @@ class EncTNS(torch.nn.Module):
             zsL += [o['zeroes'] for o in outL]
         out = self._encode(inp)
         zsL.append(out['zeroes'])
-        out['zeroes'] = torch.cat(zsL)
+        out['zeroes'] = torch.cat(zsL).detach()
         return out
 
     def forward(
