@@ -194,14 +194,17 @@ def zeroes(inp:TNS, no_grad=True) -> TNS:
     """ returns [0,1] Tensor: 1 where inp not activated (value =< 0)
     looks at last dimension / features """
 
-    def _compute(inp:TNS) -> TNS:
-        activated = (inp > 0).to(int)
-        axes = list(range(len(inp.shape)))[:-1]  # all but last(feats) axes indexes list like: [0,1,2] for 4d shape
-        activated_reduced = torch.sum(activated, dim=axes) if axes else activated  # 1 or more for activated, 0 for not activated, if not axes -> we have only-feats-tensor-case
-        return (activated_reduced == 0).to(int)
+    was_grad_enabled = False
+    if no_grad and torch.is_grad_enabled():
+        torch.set_grad_enabled(False)
+        was_grad_enabled = True
 
-    if no_grad:
-        with torch.no_grad():
-            return _compute(inp)
-    else:
-        return _compute(inp)
+    activated = (inp > 0).to(int)
+    axes = list(range(len(inp.shape)))[:-1]  # all but last(feats) axes indexes list like: [0,1,2] for 4d shape
+    activated_reduced = torch.sum(activated, dim=axes) if axes else activated  # 1 or more for activated, 0 for not activated, if not axes -> we have only-feats-tensor-case
+    zs = (activated_reduced == 0).to(int)
+
+    if was_grad_enabled:
+        torch.set_grad_enabled(True)
+
+    return zs
