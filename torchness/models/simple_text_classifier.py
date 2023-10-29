@@ -9,9 +9,8 @@ from torchness.models.text_embbeder import TextEMB
 from torchness.models.simple_feats_classifier import SFeatsCSF
 
 
-
-# Simple Text Classification Module, based on Sentence-Transformer
 class STextCSF(Module):
+    """ Simple Text Classification Module, based on Sentence-Transformer """
 
     def __init__(
             self,
@@ -47,16 +46,15 @@ class STextCSF(Module):
             self,
             texts: Union[str, List[str]],
             show_progress_bar=  'auto',
-            device=             None) -> DTNS:
+            device=             None) -> np.ndarray:
         if show_progress_bar == 'auto':
             show_progress_bar = False
             if type(texts) is list and len(texts) > 1000:
                 show_progress_bar = True
-        embeddings = self.te_module.encode(
+        return self.te_module.encode(
             texts=              texts,
             show_progress_bar=  show_progress_bar,
             device=             device)
-        return {'embeddings': embeddings}
 
     def forward(self, feats:TNS) -> DTNS:
         return self.csf(feats)
@@ -83,19 +81,18 @@ class STextCSF_MOTorch(MOTorch):
 
     def get_embeddings(
             self,
-            lines: Union[List[str],str],
+            lines: Union[str, List[str]],
             show_progress_bar=      'auto') -> np.ndarray:
         if type(lines) is str: lines = [lines]
         self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines..')
         if show_progress_bar == 'auto':
             show_progress_bar = self.logger.level < 21 and len(lines) > 1000
-        out = self.module.encode(
+        return self.module.encode(
             texts=              lines,
             show_progress_bar=  show_progress_bar,
             device=             self.device) # needs to give device here because of SentenceTransformer bug in encode() #153
-        return out['embeddings']
 
-    def get_probs(self, lines:List[str]) -> np.ndarray:
+    def get_probs(self, lines:Union[str, List[str]]) -> np.ndarray:
 
         embs = self.get_embeddings(lines)
 
@@ -104,8 +101,7 @@ class STextCSF_MOTorch(MOTorch):
 
         self.logger.info(f'{self.name} computes probs for {len(featsL)} batches of embeddings')
         iter = tqdm(featsL) if self.logger.level < 21 else featsL
-        probsL = [self(feats)['probs'] for feats in iter]
-        probs = np.concatenate(probsL)
+        probs = np.concatenate([self(feats)['probs'] for feats in iter])
         self.logger.info(f'> got probs {probs.shape}')
 
         return probs

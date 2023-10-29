@@ -7,8 +7,8 @@ from torchness.base_elements import my_initializer
 from torchness.layers import LayDense
 
 
-# Simple Feats Classification Module
 class SFeatsCSF(Module):
+    """ Simple Feats Classification Module """
 
     def __init__(
             self,
@@ -66,12 +66,11 @@ class SFeatsCSF(Module):
                 out = self.mid_drop(out)
 
         logits = self.logits(out)
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        preds = torch.argmax(logits, dim=-1)
+
         return {
             'logits':   logits,
-            'probs':    probs.detach().cpu().numpy(),
-            'preds':    preds.detach().cpu().numpy()}
+            'probs':    torch.nn.functional.softmax(logits, dim=-1),
+            'preds':    torch.argmax(logits, dim=-1)}
 
     def loss(self, feats:TNS, labels:TNS) -> DTNS:
 

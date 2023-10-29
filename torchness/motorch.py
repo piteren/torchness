@@ -51,7 +51,7 @@ class Module(torch.nn.Module):
     # noinspection PyMethodMayBeStatic
     def accuracy(self, logits:TNS, labels:TNS) -> NUM:
         """ baseline accuracy implementation for logits & lables """
-        return torch.equal(torch.argmax(logits, dim=-1), labels).mean()
+        return (torch.argmax(logits, dim=-1) == labels).to(float).mean()
 
     # noinspection PyMethodMayBeStatic
     def f1(self, logits:TNS, labels:TNS, average='weighted') -> float:
@@ -60,9 +60,9 @@ class Module(torch.nn.Module):
             micro (per sample)
             macro (per class)
             weighted (per class weighted by support) """
-        preds = torch.argmax(logits, dim=-1).cpu().numpy()
+        preds = torch.argmax(logits, dim=-1).cpu()
         return f1_score(
-            y_true=         labels.cpu().numpy(),
+            y_true=         labels.cpu(),
             y_pred=         preds,
             average=        average,
             labels=         np.unique(preds),
