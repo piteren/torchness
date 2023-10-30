@@ -37,7 +37,7 @@ def clip_grad_norm_(
 
 
 class GradClipperMAVG:
-    """ clips gradients of parameters of given Module with MovAvg va;u e"""
+    """ clips gradients of parameters of given Module with MovAvg value """
 
     def __init__(
             self,
@@ -70,25 +70,20 @@ class GradClipperMAVG:
         gg_norm_clip = self.gg_norm_clip
         self.logger.debug(f'gg_norm_clip: {gg_norm_clip}')
 
-        max_norm = gg_norm_clip
-        if self.max_clip and max_norm > self.max_clip:
-            max_norm = self.max_clip
-        self.logger.debug(f'max_norm: {max_norm}')
-
         gg_norm = clip_grad_norm_(
             parameters= self.module.parameters(),
-            max_norm=   max_norm,
+            max_norm=   gg_norm_clip,
             do_clip=    self.do_clip)
         self.logger.debug(f'gg_norm: {gg_norm}')
 
-        mavg_update = min(gg_norm, gg_norm_clip * self.max_upd )
-        # do not update when both are higher
-        if not self.max_clip or self.max_clip and not (mavg_update > self.max_clip and gg_norm_clip > self.max_clip):
-            self.mavg.upd(mavg_update)
+        mavg_update = min(gg_norm, gg_norm_clip*self.max_upd)
+        if self.max_clip and mavg_update > self.max_clip:
+            mavg_update = self.max_clip
+        self.mavg.upd(mavg_update)
 
         return {
             'gg_norm':      gg_norm,
-            'gg_norm_clip': self.gg_norm_clip}
+            'gg_norm_clip': gg_norm_clip}
 
     @property
     def gg_norm_clip(self):
