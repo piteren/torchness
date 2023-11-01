@@ -179,17 +179,16 @@ class MOTorch(ParaSave):
             flat_child=                             False,
             **kwargs):
 
-        if not name and not module_type:
-            raise MOTorchException('name OR module_type must be given!')
-
         # TODO: temporary, delete later
         if 'devices' in kwargs:
             raise MOTorchException('\'devices\' param is no more supported by MOTorch, please use \'device\'')
 
-        self.module_type = module_type
+        if not name and not module_type:
+            raise MOTorchException('name OR module_type must be given!')
 
-        # generate name
-        name = f'{self.module_type.__name__}_MOTorch' if not name else name
+        # resolve name
+        if not name:
+            name = f'{self.module_type.__name__}_MOTorch'
         if name_timestamp: name += f'_{stamp()}'
         self.name = name
 
@@ -216,8 +215,7 @@ class MOTorch(ParaSave):
                 flat_child= flat_child)
         self._log = logger
 
-        mod_info = self.module_type.__name__ if self.module_type else 'module_type NOT GIVEN (will try to load from saved)'
-        self._log.info(f'*** MOTorch : {self.name} *** initializes for module_type: {mod_info}')
+        self._log.info(f'*** MOTorch : {self.name} *** initializes..')
         self._log.info(f'> {self.name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
 
         # ************************************************************************************************* manage point
@@ -230,13 +228,19 @@ class MOTorch(ParaSave):
 
         ### resolve module_type
 
-        # if 'module_type' was not given with init -> try to get it from saved
-        if not self.module_type:
-            self.module_type = point_saved.get('module_type', None)
-        if not self.module_type:
+        module_type_saved = point_saved.get('module_type', None)
+
+        if not module_type and not module_type_saved:
             msg = 'module_type was not given and has not been found in saved, cannot continue!'
             self._log.error(msg)
             raise MOTorchException(msg)
+
+        if module_type and module_type_saved and module_type == module_type_saved:
+            msg = 'given module_type differs from module_type found in saved, do you know what are you doing?!'
+            self._log.warning(msg)
+
+        self.module_type = module_type_saved or module_type
+        self._log.info(f'> {self.name} module_type: {self.module_type.__name__}')
 
         ### manage params from self.module_type.__init__
 
@@ -331,8 +335,8 @@ class MOTorch(ParaSave):
 
         # ***************************************************************************************** build MOTorch Module
 
-        self._log.info(f'{self.name} builds graph')
-        self._module: Module = self.module_type(**self._module_point)
+        self._log.info(f'{self.name} builds graph of {self.module_type.__name__}')
+        self._module = self.module_type(**self._module_point)
 
         if self.try_load_ckpt:
             self.load_ckpt()
