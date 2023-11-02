@@ -1,8 +1,9 @@
 from pypaq.lipytools.moving_average import MovAvg
-from pypaq.pytypes import NUM, NPL
 from pypaq.lipytools.pylogger import get_pylogger
 import torch
 from typing import Optional
+
+from torchness.types import NUM, NPL
 
 
 def clip_grad_norm_(

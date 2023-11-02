@@ -4,17 +4,16 @@ from sklearn.metrics import f1_score
 import torch
 from typing import Optional, Dict, Tuple, Any
 
-from pypaq.pytypes import NUM
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.files import prep_folder
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
-from pypaq.mpython.devices import get_devices
 from pypaq.mpython.mpdecor import proc_wait
 from torchness.comoneural.batcher import Batcher
-from torchness.types import TNS, DTNS
+from torchness.types import TNS, DTNS, NUM
+from torchness.devices import get_devices
 from torchness.base_elements import mrg_ckpts
 from torchness.scaled_LR import ScaledLR
 from torchness.grad_clipping import GradClipperMAVG
@@ -106,7 +105,7 @@ class MOTorch(ParaSave):
     - may be read only (prevents save over)
 
     - manages:
-        - devices: GPU / CPU with device: DevicesPypaq parameter
+        - devices: GPU / CPU with device: DevicesTorchness parameter
         - seed -> guarantees reproducibility
         - training mode (may be overridden by user)
         - data format / type preparation (to be compatible with Module)
@@ -134,7 +133,7 @@ class MOTorch(ParaSave):
 
     MOTORCH_DEFAULTS = {
         'seed':             123,                # seed for torch and numpy
-        'device':           -1,                 # :DevicesPypaq (check pypaq.mpython.devices)
+        'device':           -1,                 # :DevicesTorchness (check torchness.devices)
         'dtype':            torch.float32,      # dtype of floats in MOTorch (16/32/64 etc)
         'bypass_data_conv': False,              # to bypass input data conversion with when calling: forward, loss, backward
             # training
@@ -188,7 +187,7 @@ class MOTorch(ParaSave):
 
         # resolve name
         if not name:
-            name = f'{self.module_type.__name__}_MOTorch'
+            name = f'{module_type.__name__}_MOTorch'
         if name_timestamp: name += f'_{stamp()}'
         self.name = name
 
@@ -278,7 +277,7 @@ class MOTorch(ParaSave):
 
         ### finally resolve device
 
-        # device parameter, may be given to MOTorch in DevicesPypaq type - it needs to be cast to PyTorch namespace here
+        # device parameter, may be given to MOTorch in DevicesTorchness type - it needs to be cast to PyTorch namespace here
         self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
         self._log.debug(f'>> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(

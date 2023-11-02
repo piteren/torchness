@@ -419,7 +419,7 @@ class TestMOTorch(unittest.TestCase):
         acc = out['acc']
         print(loss, acc)
         self.assertTrue(type(loss) is torch.Tensor)
-        self.assertTrue(type(acc) is float)
+        self.assertTrue(type(acc) is torch.Tensor)
 
         for _ in range(5):
             out = model.backward(inp, lbl)

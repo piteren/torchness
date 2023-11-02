@@ -1,8 +1,7 @@
-from pypaq.pytypes import NUM
 import torch
 from typing import Optional, Dict, List, Union
 
-from torchness.types import TNS
+from torchness.types import TNS, NUM
 
 
 class ZeroesProcessor:
