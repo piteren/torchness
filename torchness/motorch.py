@@ -571,7 +571,7 @@ class MOTorch(ParaSave):
 
         # to properly start grad clipping after load
         self['gc_first_avg'] = False
-        self['gc_start_val'] = self._grad_clipper.gg_norm_clip
+        self['gc_start_val'] = float(self._grad_clipper.gg_norm_clip)
 
         self.save_point()
         self.save_ckpt()

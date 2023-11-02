@@ -18,7 +18,8 @@ def clip_grad_norm_(
 
     if isinstance(parameters, torch.Tensor): parameters = [parameters]
     parameters = [p for p in parameters if p.grad is not None]
-    if len(parameters) == 0: return 0.0
+    if len(parameters) == 0:
+        return 0.0
 
     device = parameters[0].grad.device
     if norm_type == torch.inf:
