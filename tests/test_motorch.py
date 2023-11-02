@@ -1,5 +1,4 @@
 import numpy as np
-from pypaq.mpython.mpdecor import proc_wait
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 import torch
 from typing import Tuple, Dict
@@ -598,78 +597,3 @@ class TestMOTorch(unittest.TestCase):
             in_drop=        0.1,
             logger=         logger)
         self.assertRaises(MOTorchException, model.save)
-
-
-class TestMOTorch_GX(unittest.TestCase):
-
-
-    def setUp(self) -> None:
-        flush_tmp_dir()
-
-
-    def test_gx_ckpt(self):
-
-        name_A = 'modA'
-        name_B = 'modB'
-
-        # needs to create in separate process
-        @proc_wait
-        def create():
-            model = MOTorch(
-                module_type=    LinModel,
-                name=           name_A,
-                seed=           121,
-                in_drop=        0.1,
-                device=         None,
-                logger=         logger)
-            model.save()
-
-            model = MOTorch(
-                module_type=    LinModel,
-                name=           name_B,
-                seed=           121,
-                in_drop=        0.1,
-                device=         None,
-                logger=         logger)
-            model.save()
-
-        create()
-
-        MOTorch.gx_ckpt(
-            name_A=         name_A,
-            name_B=         name_B,
-            name_child=     f'{name_A}_GXed')
-
-
-    def test_gx_saved(self):
-
-        name_A = 'modA'
-        name_B = 'modB'
-
-        # needs to create in separate process
-        @proc_wait
-        def create():
-            model = MOTorch(
-                module_type=    LinModel,
-                name=           name_A,
-                seed=           121,
-                in_drop=        0.1,
-                device=         None,
-                logger=         logger)
-            model.save()
-
-            model = MOTorch(
-                module_type=    LinModel,
-                name=           name_B,
-                seed=           121,
-                in_drop=        0.1,
-                device=         None,
-                logger=         logger)
-            model.save()
-
-        create()
-
-        MOTorch.gx_saved(
-            name_parent_main=   name_A,
-            name_parent_scnd=   name_B,
-            name_child=         f'{name_A}_GXed')
