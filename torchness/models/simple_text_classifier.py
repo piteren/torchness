@@ -46,7 +46,8 @@ class STextCSF(Module):
             self,
             texts: Union[str, List[str]],
             show_progress_bar=  'auto',
-            device=             None) -> np.ndarray:
+            device=             None,
+    ) -> np.ndarray:
         if show_progress_bar == 'auto':
             show_progress_bar = False
             if type(texts) is list and len(texts) > 1000:
@@ -82,7 +83,8 @@ class STextCSF_MOTorch(MOTorch):
     def get_embeddings(
             self,
             lines: Union[str, List[str]],
-            show_progress_bar=      'auto') -> np.ndarray:
+            show_progress_bar=      'auto',
+    ) -> np.ndarray:
         if type(lines) is str: lines = [lines]
         self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines..')
         if show_progress_bar == 'auto':
@@ -101,7 +103,7 @@ class STextCSF_MOTorch(MOTorch):
 
         self.logger.info(f'{self.name} computes probs for {len(featsL)} batches of embeddings')
         iter = tqdm(featsL) if self.logger.level < 21 else featsL
-        probs = np.concatenate([self(feats)['probs'] for feats in iter])
+        probs = np.concatenate([self(feats)['probs'].detach().cpu().numpy() for feats in iter])
         self.logger.info(f'> got probs {probs.shape}')
 
         return probs
