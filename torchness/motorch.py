@@ -235,8 +235,7 @@ class MOTorch(ParaSave):
             raise MOTorchException(msg)
 
         if module_type and module_type_saved and module_type == module_type_saved:
-            msg = 'given module_type differs from module_type found in saved, do you know what are you doing?!'
-            self._log.warning(msg)
+            self._log.info('given module_type differs from module_type found in saved')
 
         self.module_type = module_type_saved or module_type
         self._log.info(f'> {self.name} module_type: {self.module_type.__name__}')
