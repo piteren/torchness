@@ -34,7 +34,7 @@ def mrg_ckpts(
     """
     weighted merge of two checkpoints (on CPU)
     does NOT check for compatibility of two checkpoints, but will crash if those are not compatible
-    enclosed with subprocess for better separation of torch objects
+    forced to perform on CPU device (not to raise any CUDA errors)
     """
     with torch.no_grad():
 

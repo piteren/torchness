@@ -623,27 +623,29 @@ class MOTorch(ParaSave):
     @classmethod
     def gx_ckpt(
             cls,
-            name_A: str,                            # name parent A
-            name_B: str,                            # name parent B
-            name_child: str,                        # name child
-            save_topdir_A: Optional[str]=       None,
-            save_topdir_B: Optional[str]=       None,
+            nameA: str,                     # name parent A
+            nameB: str,                     # name parent B
+            name_child: str,                # name child
+            save_topdirA: Optional[str]=        None,
+            save_topdirB: Optional[str]=        None,
             save_topdir_child: Optional[str]=   None,
             ratio: float=                       0.5,
-            noise: float=                       0.03):
+            noise: float=                       0.03,
+    ):
+        """ GX on 2 checkpoints only of saved 2 MOTorch """
 
-        if not save_topdir_A: save_topdir_A = cls.SAVE_TOPDIR
-        if not save_topdir_B: save_topdir_B = save_topdir_A
-        if not save_topdir_child: save_topdir_child = save_topdir_A
+        if not save_topdirA: save_topdirA = cls.SAVE_TOPDIR
+        if not save_topdirB: save_topdirB = save_topdirA
+        if not save_topdir_child: save_topdir_child = save_topdirA
 
         prep_folder(f'{save_topdir_child}/{name_child}')
 
         mrg_ckpts(
-            ckptA=          MOTorch._get_ckpt_path(save_topdir_A, name_A),
-            ckptB=          MOTorch._get_ckpt_path(save_topdir_B, name_B),
-            ckptM=          MOTorch._get_ckpt_path(save_topdir_child, name_child),
-            ratio=          ratio,
-            noise=          noise)
+            ckptA=  MOTorch._get_ckpt_path(save_topdirA, nameA),
+            ckptB=  MOTorch._get_ckpt_path(save_topdirB, nameB),
+            ckptM=  MOTorch._get_ckpt_path(save_topdir_child, name_child),
+            ratio=  ratio,
+            noise=  noise)
 
     @classmethod
     def gx_saved(
@@ -655,13 +657,15 @@ class MOTorch(ParaSave):
             save_topdir_parent_scnd: Optional[str]= None,
             save_topdir_child: Optional[str]=       None,
             save_fn_pfx: Optional[str]=             None,
+            device=                                 None, # to omit CUDA init
             do_gx_ckpt=                             True,
             ratio: float=                           0.5,
             noise: float=                           0.03,
             logger=                                 None,
             loglevel=                               30,
+            **kwargs,
     ) -> None:
-        """ performs GX on saved MOTorch (without even building child objects) """
+        """ performs GX on saved MOTorch """
 
         if not save_topdir_parent_main: save_topdir_parent_main = cls.SAVE_TOPDIR
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
@@ -679,23 +683,24 @@ class MOTorch(ParaSave):
 
         if do_gx_ckpt:
             cls.gx_ckpt(
-                name_A=             name_parent_main,
-                name_B=             name_parent_scnd or name_parent_main,
+                nameA=              name_parent_main,
+                nameB=              name_parent_scnd or name_parent_main,
                 name_child=         name_child,
-                save_topdir_A=      save_topdir_parent_main,
-                save_topdir_B=      save_topdir_parent_scnd,
+                save_topdirA=       save_topdir_parent_main,
+                save_topdirB=       save_topdir_parent_scnd,
                 save_topdir_child=  save_topdir_child,
                 ratio=              ratio,
                 noise=              noise)
+        # build MOTorch and save to have checkpoint saved
         else:
-            mod = cls(
-                name=               name_child,
+            cls(name=               name_child,
                 save_topdir=        save_topdir_child or save_topdir_parent_main,
                 save_fn_pfx=        save_fn_pfx,
+                device=             device,
                 logger=             logger,
-                loglevel=           loglevel)
-            mod.save() # save checkpoint
-
+                loglevel=           loglevel,
+                **kwargs,
+            ).save()
 
     # ***************************************************************************************************** train / test
 
