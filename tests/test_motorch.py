@@ -597,3 +597,61 @@ class TestMOTorch(unittest.TestCase):
             in_drop=        0.1,
             logger=         logger)
         self.assertRaises(MOTorchException, model.save)
+
+    # GX
+
+    def test_gx_ckpt(self):
+
+        name_A = 'modA'
+        name_B = 'modB'
+
+        model = MOTorch(
+            module_type=    LinModel,
+            name=           name_A,
+            seed=           121,
+            in_drop=        0.1,
+            device=         None,
+            logger=         logger)
+        model.save()
+
+        model = MOTorch(
+            module_type=    LinModel,
+            name=           name_B,
+            seed=           121,
+            in_drop=        0.1,
+            device=         None,
+            logger=         logger)
+        model.save()
+
+        MOTorch.gx_ckpt(
+            name_A=         name_A,
+            name_B=         name_B,
+            name_child=     f'{name_A}_GXed')
+
+    def test_gx_saved(self):
+
+        name_C = 'modC'
+        name_D = 'modD'
+
+        model = MOTorch(
+            module_type=    LinModel,
+            name=           name_C,
+            seed=           121,
+            in_drop=        0.1,
+            device=         None,
+            logger=         logger)
+        model.save()
+
+        model = MOTorch(
+            module_type=    LinModel,
+            name=           name_D,
+            seed=           121,
+            in_drop=        0.1,
+            device=         None,
+            logger=         logger)
+        model.save()
+
+        MOTorch.gx_saved(
+            name_parent_main=   name_C,
+            name_parent_scnd=   name_D,
+            name_child=         f'{name_C}_GXed')

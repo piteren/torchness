@@ -10,7 +10,6 @@ from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
-from pypaq.mpython.mpdecor import proc_wait
 from torchness.comoneural.batcher import Batcher
 from torchness.types import TNS, DTNS, NUM
 from torchness.devices import get_devices
@@ -533,8 +532,7 @@ class MOTorch(ParaSave):
         save_obj = None
 
         try:
-            # INFO: immediately place all tensors to current device (not previously saved one)
-            save_obj = torch.load(f=ckpt_path, map_location=self.device)
+            save_obj = torch.load(f=ckpt_path, map_location=self.device) # immediately place all tensors to current device (not previously saved one)
             self._module.load_state_dict(save_obj.pop('model_state_dict'))
             self._log.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
@@ -690,19 +688,14 @@ class MOTorch(ParaSave):
                 ratio=              ratio,
                 noise=              noise)
         else:
+            mod = cls(
+                name=               name_child,
+                save_topdir=        save_topdir_child or save_topdir_parent_main,
+                save_fn_pfx=        save_fn_pfx,
+                logger=             logger,
+                loglevel=           loglevel)
+            mod.save() # save checkpoint
 
-            # wrapped into subprocess for better separation of torch objects (similar to mrg_ckpts() in base_elements)
-            @proc_wait
-            def build_with_subprocess():
-                mod = cls(
-                    name=               name_child,
-                    save_topdir=        save_topdir_child or save_topdir_parent_main,
-                    save_fn_pfx=        save_fn_pfx,
-                    logger=             logger,
-                    loglevel=           loglevel)
-                mod.save() # save checkpoint
-
-            build_with_subprocess()
 
     # ***************************************************************************************************** train / test
 

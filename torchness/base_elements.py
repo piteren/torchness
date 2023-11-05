@@ -1,9 +1,8 @@
 from collections import OrderedDict
-from pypaq.mpython.mpdecor import proc_wait
 import torch
 from typing import Optional
 
-from torchness.types import TNS, DTNS
+from torchness.types import NUM, TNS, DTNS
 
 
 
@@ -11,11 +10,11 @@ class TorchnessException(Exception):
     pass
 
 # weights initializer from BERT, the only difference is that in torch values are CLAMPED not SAMPLED till in <a,b>
-def bert_initializer(*args, std=0.02, **kwargs):
+def bert_initializer(*args, std:NUM=0.02, **kwargs):
     return torch.nn.init.trunc_normal_(*args, **kwargs, std=std, a=-2*std, b=2*std)
 
 
-def my_initializer(*args, std=0.02, **kwargs):
+def my_initializer(*args, std:NUM=0.02, **kwargs):
     # different layers use different initialization functions:
     # torch Linear % Conv1D uses kaiming_uniform_(weights) & xavier_uniform_(bias)
     # my TF uses trunc_normal_(weights, std=0.02, a==b==2*std) & 0(bias) <- from BERT
@@ -24,49 +23,66 @@ def my_initializer(*args, std=0.02, **kwargs):
     # - trunc_normal_ is normal with mean 0 and given std, all values SAMPLED till in <a,b>
     return bert_initializer(*args, **kwargs, std=std)
 
-@proc_wait
+
 def mrg_ckpts(
-        ckptA: str,                     # checkpoint A (file name)
-        ckptB: Optional[str],           # checkpoint B (file name), for None takes 100% ckptA
-        ckptM: str,                     # checkpoint merged (file name)
-        ratio: float=           0.5,    # ratio of merge
-        noise: float=           0.0     # noise factor, amount of noise added to new value <0.0;1.0>
+        ckptA: str,             # checkpoint A (file name)
+        ckptB: Optional[str],   # checkpoint B (file name), for None takes 100% ckptA
+        ckptM: str,             # checkpoint merged (file name)
+        ratio: NUM=     0.5,    # ratio of merge
+        noise: NUM=     0.0,    # noise factor, amount of noise added to new value <0.0;1.0>
 ):
     """
-    weighted merge of two checkpoints
+    weighted merge of two checkpoints (on CPU)
     does NOT check for compatibility of two checkpoints, but will crash if those are not compatible
     enclosed with subprocess for better separation of torch objects
     """
-    checkpoint_A = torch.load(ckptA)
-    checkpoint_B = torch.load(ckptB) if ckptB else checkpoint_A
+    with torch.no_grad():
 
-    cmsd_A = checkpoint_A['model_state_dict']
-    cmsd_B = checkpoint_B['model_state_dict']
-    cmsd_M = OrderedDict()
+        checkpointA = torch.load(ckptA, map_location='cpu')
+        checkpointB = torch.load(ckptB, map_location='cpu') if ckptB else checkpointA
 
-    for k in cmsd_A:
-        if cmsd_A[k].is_floating_point():
-            std_dev = float(torch.std(cmsd_A[k]))
-            noise_tensor = torch.zeros_like(cmsd_A[k])
-            if std_dev != 0.0: # bias variable case
-                my_initializer(noise_tensor, std=std_dev)
-            cmsd_M[k] = ratio * cmsd_A[k] + (1 - ratio) * cmsd_B[k] + noise * noise_tensor
-        else:
-            cmsd_M[k] = cmsd_A[k]
+        cmsdA = checkpointA['model_state_dict']
+        cmsdB = checkpointB['model_state_dict']
+        cmsdM = OrderedDict()
 
-    checkpoint_M = {}
-    checkpoint_M.update(checkpoint_A)
-    checkpoint_M['model_state_dict'] = cmsd_M
+        for k in cmsdA:
+            tnsA = cmsdA[k]
+            if tnsA.is_floating_point():
 
-    torch.save(checkpoint_M, ckptM)
+                if type(ratio) is torch.Tensor:
+                    ratio = ratio.cpu()
+
+                tnsB = cmsdB[k]
+                cmsdM[k] = ratio * tnsA + (1 - ratio) * tnsB
+
+                if noise > 0.0:
+
+                    std_dev = torch.std(tnsA)
+                    if std_dev != 0.0:
+
+                        noise_tensor = torch.zeros_like(tnsA)
+                        my_initializer(noise_tensor, std=std_dev)
+
+                        if type(noise) is torch.Tensor:
+                            noise = ratio.cpu()
+
+                        cmsdM[k] += noise * noise_tensor
+            else:
+                cmsdM[k] = tnsA
+
+        checkpoint_M = {}
+        checkpoint_M.update(checkpointA)
+        checkpoint_M['model_state_dict'] = cmsdM
+
+        torch.save(checkpoint_M, ckptM)
 
 # returns base checkpoint information, if given two - checks if B is equal A
 def ckpt_nfo(
         ckptA: str,                     # checkpoint A (file name)
         ckptB: Optional[str]=   None,   # checkpoint B (file name)
 ):
-    checkpoint_A = torch.load(ckptA)
-    checkpoint_B = torch.load(ckptB) if ckptB else None
+    checkpoint_A = torch.load(ckptA, map_location='cpu')
+    checkpoint_B = torch.load(ckptB, map_location='cpu') if ckptB else None
     are_equal = True
 
     cmsd_A = checkpoint_A['model_state_dict']
