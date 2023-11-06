@@ -32,7 +32,7 @@ class Module(torch.nn.Module):
     def __init__(self, logger=None, loglevel=20):
         torch.nn.Module.__init__(self)
         if not logger:
-            logger = get_pylogger(name='Module_logger', level=loglevel)
+            logger = get_pylogger(name=f'{self.__class__.__name__}_logger', level=loglevel)
         self.logger = logger
 
 
