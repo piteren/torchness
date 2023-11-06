@@ -68,7 +68,11 @@ class Module(torch.nn.Module):
 
 
     def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
-        """ If implemented, MOTorch will use returned Optimizer definition - Optimizer type and Optimizer kwargs """
+        """ if implemented, MOTorch will use returned Optimizer definition
+        (Optimizer type, Optimizer kwargs)
+
+        *optimizer class may be given with kwarg (opt_class) to MOTorch,
+        but if it is needed to define optimizer with its kwargs, this is the way """
         raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
 
 
