@@ -29,7 +29,7 @@ class Module(torch.nn.Module):
     accuracy() and f1() are metrics used by MOTorch while training
     """
 
-    def __init__(self, logger=None, loglevel=20, **kwargs):
+    def __init__(self, logger=None, loglevel=20):
         torch.nn.Module.__init__(self)
         if not logger:
             logger = get_pylogger(name='Module_logger', level=loglevel)

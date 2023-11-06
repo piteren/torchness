@@ -50,7 +50,7 @@ class LinModel(Module):
 class LinModelOpt(LinModel):
 
     def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
-        return torch.optim.SGD, {}
+        return torch.optim.SGD, {'momentum': 0.666}
 
 
 logger = get_pylogger(name='test_motorch', level=20)
@@ -460,6 +460,7 @@ class TestMOTorch(unittest.TestCase):
             logger=         _log,
         )
         self.assertTrue(type(model._opt) == torch.optim.SGD)
+        print(model._opt)
 
     def test_training_mode(self):
 
@@ -602,12 +603,12 @@ class TestMOTorch(unittest.TestCase):
 
     def test_gx_ckpt(self):
 
-        name_A = 'modA'
-        name_B = 'modB'
+        nameA = 'modA'
+        nameB = 'modB'
 
         model = MOTorch(
             module_type=    LinModel,
-            name=           name_A,
+            name=           nameA,
             seed=           121,
             in_drop=        0.1,
             device=         None,
@@ -616,7 +617,7 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            name=           name_B,
+            name=           nameB,
             seed=           121,
             in_drop=        0.1,
             device=         None,
@@ -624,18 +625,18 @@ class TestMOTorch(unittest.TestCase):
         model.save()
 
         MOTorch.gx_ckpt(
-            name_A=         name_A,
-            name_B=         name_B,
-            name_child=     f'{name_A}_GXed')
+            nameA=          nameA,
+            nameB=          nameB,
+            name_child=     f'{nameA}_GXed')
 
     def test_gx_saved(self):
 
-        name_C = 'modC'
-        name_D = 'modD'
+        nameC = 'modC'
+        nameD = 'modD'
 
         model = MOTorch(
             module_type=    LinModel,
-            name=           name_C,
+            name=           nameC,
             seed=           121,
             in_drop=        0.1,
             device=         None,
@@ -644,7 +645,7 @@ class TestMOTorch(unittest.TestCase):
 
         model = MOTorch(
             module_type=    LinModel,
-            name=           name_D,
+            name=           nameD,
             seed=           121,
             in_drop=        0.1,
             device=         None,
@@ -652,6 +653,6 @@ class TestMOTorch(unittest.TestCase):
         model.save()
 
         MOTorch.gx_saved(
-            name_parent_main=   name_C,
-            name_parent_scnd=   name_D,
-            name_child=         f'{name_C}_GXed')
+            name_parent_main=   nameC,
+            name_parent_scnd=   nameD,
+            name_child=         f'{nameC}_GXed')
