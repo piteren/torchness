@@ -7,7 +7,8 @@ from torchness.layers import LayDense, TF_Dropout, LayConv1D, LayRES, zeroes
 
 
 class LayBlockDRT(torch.nn.Module):
-    """ Block (Layer) of EncDRT (LN > Dense or two_with_drop_in_between > drop > RES with drop) """
+    """ Block (Layer) of EncDRT
+    LN > Dense or two_with_drop_in_between > drop > RES with drop """
 
     def __init__(
             self,
@@ -178,7 +179,8 @@ class EncDRT(torch.nn.Module):
 
 
 class LayBlockCNN(torch.nn.Module):
-    """ Block (Layer) of EncCNN (LN > CNN > act > drop > RES > LayBlockDRT)
+    """ Block (Layer) of EncCNN
+    LN > CNN > act > drop > RES > LayBlockDRT
     number of parameters: kernel*in_features*n_filters """
 
     def __init__(
@@ -209,21 +211,18 @@ class LayBlockCNN(torch.nn.Module):
         if kernel_size % 2 == 0: raise TorchnessException('LayBlockCNN kernel_size cannot be even number')
         self.kernel_size = kernel_size
 
-        self.device = device
-        self.dtype = dtype
-
         self.lay_ln = torch.nn.LayerNorm(
             normalized_shape=   self.n_filters,
-            device=             self.device,
-            dtype=              self.dtype)
+            device=             device,
+            dtype=              dtype)
 
         self.lay_conv1D = LayConv1D(
             in_features=    self.n_filters,
             n_filters=      self.n_filters,
             kernel_size=    self.kernel_size,
             padding=        'valid',
-            device=         self.device,
-            dtype=          self.dtype,
+            device=         device,
+            dtype=          dtype,
             activation=     None,
             initializer=    initializer)
 
@@ -241,8 +240,8 @@ class LayBlockCNN(torch.nn.Module):
             lay_dropout=    ldrt_drop,
             residual=       ldrt_residual,
             res_dropout=    ldrt_res_dropout,
-            device=         self.device,
-            dtype=          self.dtype,
+            device=         device,
+            dtype=          dtype,
             initializer=    initializer) if do_ldrt else None
 
         self.detach_history = detach_history
@@ -250,7 +249,7 @@ class LayBlockCNN(torch.nn.Module):
     def _get_zero_history_base(self) -> TNS:
         """ prepares baseline 2-dim zero_history """
         in_sh = [self.kernel_size-1, self.n_filters]
-        return torch.zeros(in_sh).to(self.device, self.dtype)
+        return torch.zeros(in_sh)
 
     def get_zero_history(self, inp:Optional[TNS]=None) -> TNS:
         """ prepares initial history for casual mode, history has shape [.., kernel_size-1, n_filters] """
@@ -260,8 +259,8 @@ class LayBlockCNN(torch.nn.Module):
 
     def forward(
             self,
-            inp: TNS,                       # INFO: at least 2-dim tensor: [.., seq, feats]
-            history: Optional[TNS]= None,   # INFO: history must be given for casual mode
+            inp: TNS,                       # at least 2-dim tensor: [.., seq, feats]
+            history: Optional[TNS]= None,   # history must be given for casual mode
     ) -> DTNS:
 
         zsL = []
@@ -278,7 +277,7 @@ class LayBlockCNN(torch.nn.Module):
             if history is None:
                 pad_shape = proper_history_shape
                 pad_shape[-2] = pad_shape[-2] // 2
-                pad = torch.zeros(pad_shape).to(self.device, self.dtype)
+                pad = torch.zeros(pad_shape).to(out.device, out.dtype)
                 conc = [pad, out, pad]
                 out = torch.concat(conc, dim=-2)
 
@@ -357,7 +356,7 @@ class EncCNN(torch.nn.Module):
             ldrt_residual: bool=        True,
             ldrt_res_dropout: float=    0.0,
             # other
-            detach_history: bool=       True,  # by default state (history) will be detached on output
+            detach_history: bool=       True,           # by default state (history) will be detached in output
             device=                     None,
             dtype=                      None,
             initializer: INI=           None):
@@ -369,9 +368,6 @@ class EncCNN(torch.nn.Module):
         self.kernel_size = kernel_size
         self.n_filters = n_filters or self.in_features
 
-        self.device = device
-        self.dtype = dtype
-
         self.in_TFdrop_lay = TF_Dropout(
             time_drop=  time_drop,
             feat_drop=  feat_drop) if time_drop or feat_drop else None
@@ -381,8 +377,8 @@ class EncCNN(torch.nn.Module):
             out_features=   self.n_filters,
             activation=     None,
             bias=           False,
-            device=         self.device,
-            dtype=          self.dtype,
+            device=         device,
+            dtype=          dtype,
             initializer=    initializer) if self.in_features != self.n_filters else None
 
         num_blocks_to_build = 1 if shared_lays else self.n_layers
@@ -401,8 +397,8 @@ class EncCNN(torch.nn.Module):
             ldrt_residual=      ldrt_residual,
             ldrt_res_dropout=   ldrt_res_dropout,
             detach_history=     detach_history,
-            device=             self.device,
-            dtype=              self.dtype,
+            device=             device,
+            dtype=              dtype,
             initializer=        initializer) for _ in range(num_blocks_to_build)]
 
         for bix,block in enumerate(self.blocks): self.add_module(f'block_{bix}',block)
@@ -411,11 +407,12 @@ class EncCNN(torch.nn.Module):
 
         self.out_ln = torch.nn.LayerNorm(
             normalized_shape=   self.n_filters,
-            device=             self.device,
-            dtype=              self.dtype)
+            device=             device,
+            dtype=              dtype)
 
-    # prepares initial history for casual mode, history has shape [.., n_layers, kernel_size-1, n_filters]
     def get_zero_history(self, inp:Optional[TNS]=None) -> TNS:
+        """ prepares initial history for casual mode
+        history has shape [.., n_layers, kernel_size-1, n_filters] """
         block_zero_history = self.blocks[0].get_zero_history(inp)
         bzhs = list(block_zero_history.shape)
         block_zero_history = block_zero_history.view(bzhs[:-2] + [1] + bzhs[-2:]) # add dim
@@ -424,7 +421,8 @@ class EncCNN(torch.nn.Module):
     def forward(
             self,
             inp: TNS,
-            history: Optional[TNS]= None) -> DTNS:
+            history: Optional[TNS]= None, # if history will be given -> works in casual mode
+    ) -> DTNS:
 
         states = []  # here we will store block states to concatenate them finally
         zsL = []

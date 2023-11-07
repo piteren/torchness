@@ -949,4 +949,5 @@ class MOTorch(ParaSave):
     def __str__(self):
         s = f'MOTorch: {ParaSave.__str__(self)}\n'
         s += str(self._module)
+        s += f'{str(self._module)}\n ### model size: {self.size} params'
         return s
