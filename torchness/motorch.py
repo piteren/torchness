@@ -147,9 +147,9 @@ class MOTorch(ParaSave):
             # LR management (check torchness.base_elements.ScaledLR)
         'baseLR':           3e-4,
         'warm_up':          None,
+        'n_wup_off':        2.0,
         'ann_base':         None,
         'ann_step':         1.0,
-        'n_wup_off':        2.0,
             # gradients clipping parameters (check torchness.grad_clipping.GradClipperMAVG)
         'gc_do_clip':       False,
         'gc_start_val':     0.1,
@@ -237,7 +237,7 @@ class MOTorch(ParaSave):
             self._log.error(msg)
             raise MOTorchException(msg)
 
-        if module_type and module_type_saved and module_type == module_type_saved:
+        if module_type and module_type_saved and module_type != module_type_saved:
             self._log.info('given module_type differs from module_type found in saved')
 
         self.module_type = module_type_saved or module_type
@@ -367,9 +367,9 @@ class MOTorch(ParaSave):
             optimizer=      self._opt,
             starting_step=  self.train_step,
             warm_up=        self.warm_up,
+            n_wup_off=      self.n_wup_off,
             ann_base=       self.ann_base,
             ann_step=       self.ann_step,
-            n_wup_off=      self.n_wup_off,
             logger=         get_child(self._log, 'ScaledLR'))
 
         self._grad_clipper = GradClipperMAVG(

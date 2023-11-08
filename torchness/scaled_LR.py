@@ -13,9 +13,9 @@ class ScaledLR(torch.optim.lr_scheduler._LRScheduler):
             optimizer,
             starting_step: int=         0,      # step to start with
             warm_up: Optional[int]=     1000,   # number of steps for linear warm-up, for None or 0 warm-up is turned off
+            n_wup_off: float=           2.0,    # number of warm-up durations to start annealing
             ann_base: Optional[float]=  0.999,  # annealing base, None or 1.0 turns off annealing
             ann_step: float=            1.0,    # annealing step, higher value speeds up annealing
-            n_wup_off: float=           2.0,    # number of warm-up durations to start annealing
             last_epoch=                 -1,
             logger=                     None):
 
