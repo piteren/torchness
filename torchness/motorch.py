@@ -223,7 +223,8 @@ class MOTorch(ParaSave):
             name=           name,
             save_topdir=    save_topdir,
             save_fn_pfx=    save_fn_pfx,
-            logger=         get_child(self._log, 'ParaSave_logger'))
+            logger=         get_child(self._log, 'ParaSave_logger'),
+            **kwargs)
         point_saved = self.get_point()
 
         # **************************************************************************************** further resolve POINT
@@ -240,12 +241,12 @@ class MOTorch(ParaSave):
         if module_type and module_type_saved and module_type != module_type_saved:
             self._log.info('given module_type differs from module_type found in saved, using saved')
 
-        self.module_type = module_type_saved or module_type
-        self._log.info(f'> {self.name} module_type: {self.module_type.__name__}')
+        module_type = module_type_saved or module_type
+        self._log.info(f'> {self.name} module_type: {module_type.__name__}')
 
         ### manage params from self.module_type.__init__
 
-        _module_init_def = get_class_init_params(self.module_type)['with_defaults'] # defaults of self.module_type.__init__
+        _module_init_def = get_class_init_params(module_type)['with_defaults'] # defaults of self.module_type.__init__
 
         # special case of params: [device, dtype] <- those will be set with values prepared by MOTorch below, BUT...
         _override_in_module_for_none = {
@@ -269,6 +270,7 @@ class MOTorch(ParaSave):
         self._point.update(_override_in_module_for_none)
         self._point.update(point_saved)
         self._point.update(kwargs)
+        self._point["module_type"] = module_type
 
         # remove logger (may come from Module init defaults)
         if 'logger' in self._point:
@@ -293,7 +295,7 @@ class MOTorch(ParaSave):
 
         ### prepare Module point and extract not used kwargs
 
-        self._module_point = point_trim(self.module_type, self._point)
+        self._module_point = point_trim(module_type, self._point)
         self._module_point['logger'] = get_child(self._log, 'Module_logger')
 
         _kwargs_not_used = {}

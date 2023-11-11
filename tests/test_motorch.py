@@ -636,6 +636,7 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             name=           nameC,
+            family=         'a',
             seed=           121,
             in_drop=        0.1,
             device=         None,
@@ -645,6 +646,7 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             name=           nameD,
+            family=         'a',
             seed=           121,
             in_drop=        0.1,
             device=         None,
@@ -652,6 +654,6 @@ class TestMOTorch(unittest.TestCase):
         model.save()
 
         MOTorch.gx_saved(
-            name_parent_main=   nameC,
-            name_parent_scnd=   nameD,
-            name_child=         f'{nameC}_GXed')
+            name_parentA=   nameC,
+            name_parentB=   nameD,
+            name_child=     f'{nameC}_GXed')
