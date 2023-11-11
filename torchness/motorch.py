@@ -657,51 +657,51 @@ class MOTorch(ParaSave):
     @classmethod
     def gx_saved(
             cls,
-            name_parent_main: str,
-            name_parent_scnd: Optional[str],    # if not given makes GX only with main parent
+            name_parentA: str,
+            name_parentB: Optional[str],    # if not given makes GX only with main parent
             name_child: str,
-            save_topdir_parent_main: Optional[str]= None,
-            save_topdir_parent_scnd: Optional[str]= None,
-            save_topdir_child: Optional[str]=       None,
-            save_fn_pfx: Optional[str]=             None,
-            device=                                 None, # to omit CUDA init
-            do_gx_ckpt=                             True,
-            ratio: float=                           0.5,
-            noise: float=                           0.03,
-            logger=                                 None,
-            loglevel=                               30,
+            save_topdir_parentA: Optional[str]= None,
+            save_topdir_parentB: Optional[str]= None,
+            save_topdir_child: Optional[str]=   None,
+            save_fn_pfx: Optional[str]=         None,
+            device=                             None, # to omit CUDA init
+            do_gx_ckpt=                         True,
+            ratio: float=                       0.5,
+            noise: float=                       0.03,
+            logger=                             None,
+            loglevel=                           30,
             **kwargs,
     ) -> None:
         """ performs GX on saved MOTorch """
 
-        if not save_topdir_parent_main: save_topdir_parent_main = cls.SAVE_TOPDIR
+        if not save_topdir_parentA: save_topdir_parentA = cls.SAVE_TOPDIR
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
 
         cls.gx_saved_point(
-            name_parent_main=           name_parent_main,
-            name_parent_scnd=           name_parent_scnd,
-            name_child=                 name_child,
-            save_topdir_parent_main=    save_topdir_parent_main,
-            save_topdir_parent_scnd=    save_topdir_parent_scnd,
-            save_topdir_child=          save_topdir_child,
-            save_fn_pfx=                save_fn_pfx,
-            logger=                     logger,
-            loglevel=                   loglevel)
+            name_parentA=           name_parentA,
+            name_parentB=           name_parentB,
+            name_child=             name_child,
+            save_topdir_parentA=    save_topdir_parentA,
+            save_topdir_parentB=    save_topdir_parentB,
+            save_topdir_child=      save_topdir_child,
+            save_fn_pfx=            save_fn_pfx,
+            logger=                 logger,
+            loglevel=               loglevel)
 
         if do_gx_ckpt:
             cls.gx_ckpt(
-                nameA=              name_parent_main,
-                nameB=              name_parent_scnd or name_parent_main,
+                nameA=              name_parentA,
+                nameB=              name_parentB or name_parentA,
                 name_child=         name_child,
-                save_topdirA=       save_topdir_parent_main,
-                save_topdirB=       save_topdir_parent_scnd,
+                save_topdirA=       save_topdir_parentA,
+                save_topdirB=       save_topdir_parentB,
                 save_topdir_child=  save_topdir_child,
                 ratio=              ratio,
                 noise=              noise)
         # build MOTorch and save to have checkpoint saved
         else:
             cls(name=               name_child,
-                save_topdir=        save_topdir_child or save_topdir_parent_main,
+                save_topdir=        save_topdir_child or save_topdir_parentA,
                 save_fn_pfx=        save_fn_pfx,
                 device=             device,
                 logger=             logger,
@@ -930,7 +930,6 @@ class MOTorch(ParaSave):
     @property
     def tbwr(self):
         return self._TBwr
-
 
     def log_TB(
             self,
