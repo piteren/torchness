@@ -58,7 +58,6 @@ logger = get_pylogger(name='test_motorch', level=20)
 
 class TestMOTorch(unittest.TestCase):
 
-
     def setUp(self) -> None:
         flush_tmp_dir()
 

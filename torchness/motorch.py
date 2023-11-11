@@ -123,13 +123,13 @@ class MOTorch(ParaSave):
     - adds some sanity checks
 
     MOTorch defaults are stored in MOTORCH_DEFAULTS dict and cannot be placed in __init__ defaults.
-    This is a consequence of the params resolution mechanism in MOTorch,
-    where params may come from four sources, and each subsequent source overrides the previous ones:
+    This is a consequence of the params resolution mechanism in MOTorch / ParaSave,
+    where parameters may come from four sources, and each subsequent source overrides the previous ones:
         1. __init__ defaults - only a few of them are considered in ParaSave managed params
         2. Module __init__ defaults
         3. saved in the folder
         4. provided through kwargs in __init__
-    If all MOTorch params were set with __init__ defaults,
+    If all MOTorch parameters were set with __init__ defaults,
     it would not be possible to distinguish between sources 1 and 4.
 
     @DynamicAttrs <-- disables warning for unresolved attributes references """
@@ -186,16 +186,15 @@ class MOTorch(ParaSave):
         if 'devices' in kwargs:
             raise MOTorchException('\'devices\' param is no more supported by MOTorch, please use \'device\'')
 
-        if not name and not module_type:
+        if not (name or module_type):
             raise MOTorchException('name OR module_type must be given!')
 
         # resolve name
         if not name:
             name = f'{module_type.__name__}_MOTorch'
         if name_timestamp: name += f'_{stamp()}'
-        self.name = name
 
-        # some early overrides
+        # some early kwargs overrides
 
         if kwargs.get('hpmser_mode', False):
             loglevel = 50
@@ -206,28 +205,28 @@ class MOTorch(ParaSave):
 
         _read_only = kwargs.get('read_only', False)
 
-        if not save_topdir: save_topdir = self.SAVE_TOPDIR
-        if not save_fn_pfx: save_fn_pfx = self.SAVE_FN_PFX
-
         if not logger:
             logger = get_pylogger(
-                name=       self.name,
+                name=       name,
                 add_stamp=  False,
-                folder=     None if _read_only else MOTorch._get_model_dir(save_topdir, self.name),
+                folder=     None if _read_only else self._get_model_dir(save_topdir, name),
                 level=      loglevel,
                 flat_child= flat_child)
         self._log = logger
 
-        self._log.info(f'*** MOTorch : {self.name} *** initializes..')
-        self._log.info(f'> {self.name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
+        self._log.info(f'*** MOTorch : {name} *** initializes..')
+        self._log.info(f'> {name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
 
-        # ************************************************************************************************* manage point
-
-        # try to load point from given folder
-        point_saved = ParaSave.load_point(
-            name=           self.name,
+        # init as a ParaSave
+        ParaSave.__init__(
+            self,
+            name=           name,
             save_topdir=    save_topdir,
-            save_fn_pfx=    save_fn_pfx)
+            save_fn_pfx=    save_fn_pfx,
+            logger=         get_child(self._log, 'ParaSave_logger'))
+        point_saved = self.get_point()
+
+        # **************************************************************************************** further resolve POINT
 
         ### resolve module_type
 
@@ -239,7 +238,7 @@ class MOTorch(ParaSave):
             raise MOTorchException(msg)
 
         if module_type and module_type_saved and module_type != module_type_saved:
-            self._log.info('given module_type differs from module_type found in saved')
+            self._log.info('given module_type differs from module_type found in saved, using saved')
 
         self.module_type = module_type_saved or module_type
         self._log.info(f'> {self.name} module_type: {self.module_type.__name__}')
@@ -250,8 +249,8 @@ class MOTorch(ParaSave):
 
         # special case of params: [device, dtype] <- those will be set with values prepared by MOTorch below, BUT...
         _override_in_module_for_none = {
-            'device':   MOTorch.MOTORCH_DEFAULTS['device'],
-            'dtype':    MOTorch.MOTORCH_DEFAULTS['dtype']}
+            'device':   self.MOTORCH_DEFAULTS['device'],
+            'dtype':    self.MOTORCH_DEFAULTS['dtype']}
 
         # ..EXCEPT a case when are set in self.module_type.__init__ to other value than None
         remove_from_override = []
@@ -265,14 +264,11 @@ class MOTorch(ParaSave):
 
         self._point = {}
         self._point.update(ParaSave.PARASAVE_DEFAULTS)
-        self._point.update(MOTorch.MOTORCH_DEFAULTS)
+        self._point.update(self.MOTORCH_DEFAULTS)
         self._point.update(_module_init_def)
         self._point.update(_override_in_module_for_none)
         self._point.update(point_saved)
-        self._point.update(kwargs)  # update with kwargs given NOW by user
-        self._point['name'] = self.name
-        self._point['save_topdir'] = save_topdir
-        self._point['save_fn_pfx'] = save_fn_pfx
+        self._point.update(kwargs)
 
         # remove logger (may come from Module init defaults)
         if 'logger' in self._point:
@@ -280,7 +276,8 @@ class MOTorch(ParaSave):
 
         ### finally resolve device
 
-        # device parameter, may be given to MOTorch in DevicesTorchness type - it needs to be cast to PyTorch namespace here
+        # device parameter, may be given to MOTorch in DevicesTorchness type
+        # it needs to be cast to PyTorch namespace here
         self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
         self._log.debug(f'>> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(
@@ -294,7 +291,7 @@ class MOTorch(ParaSave):
         self._log.info(f'> {self.name} given devices: {self._point["device"]}, will use: {device}')
         self._point['device'] = device
 
-        ### prepare Module point and manage not used kwargs
+        ### prepare Module point and extract not used kwargs
 
         self._module_point = point_trim(self.module_type, self._point)
         self._module_point['logger'] = get_child(self._log, 'Module_logger')
@@ -308,8 +305,8 @@ class MOTorch(ParaSave):
 
         self._log.debug(f'> {self.name} POINT sources:')
         self._log.debug(f'>> PARASAVE_DEFAULTS:         {ParaSave.PARASAVE_DEFAULTS}')
-        self._log.debug(f'>> MOTORCH_DEFAULTS:          {MOTorch.MOTORCH_DEFAULTS}')
-        self._log.debug(f'>> Module.__init__ defaults:  {_module_init_def}') # here are reported original Module.__init__ defaults without any MOTorch override
+        self._log.debug(f'>> MOTORCH_DEFAULTS:          {self.MOTORCH_DEFAULTS}')
+        self._log.debug(f'>> Module.__init__ defaults:  {_module_init_def}')
         self._log.debug(f'>> POINT saved:               {point_saved}')
         self._log.debug(f'>> given kwargs:              {kwargs}')
         self._log.debug(f'> resolved POINT:')
@@ -317,25 +314,23 @@ class MOTorch(ParaSave):
         self._log.debug(f'>> kwargs not used by Module: {_kwargs_not_used}')
         self._log.debug(f'{self.name} complete POINT:\n{self._point}')
 
-        # ******************************************************************************************* init as a ParaSave
+        self.update(self._point)
 
-        ParaSave.__init__(self, logger=get_child(self._log, 'ParaSave_logger'), **self._point)
-
-        # params names safety check
-        pms = list(MOTorch.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys())
-        found = self.check_params_sim(params=pms)
+        # parameters names safety check
+        found = self.check_params_sim(params=list(self.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys()))
         if found:
             self._log.warning('MOTorch was asked to check for params similarity and found:')
-            for pa, pb in found: self._log.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
+            for pa, pb in found:
+                self._log.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
 
-        # *********************** set seed in all possible areas (https://pytorch.org/docs/stable/notes/randomness.html)
+        # set seed in all possible areas (https://pytorch.org/docs/stable/notes/randomness.html)
 
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-        # ***************************************************************************************** build MOTorch Module
+        ### build MOTorch Module
 
         self._log.info(f'{self.name} builds graph of {self.module_type.__name__}')
         self._module = self.module_type(**self._module_point)
@@ -350,6 +345,8 @@ class MOTorch(ParaSave):
         self._module.to(self.dtype)
 
         self._log.debug(f'{self.name} Module initialized!')
+
+        ### resolve optimizer
 
         opt_kwargs = {}
         try:
@@ -387,9 +384,7 @@ class MOTorch(ParaSave):
         self.train(False)
         self._log.debug(f'> set {self.name} train.mode to False..')
 
-        # *********************************************************************************************** other & finish
-
-        self._TBwr = tbwr or TBwr(logdir=MOTorch._get_model_dir(self.save_topdir, self.name)) if self.do_TB else None  # TensorBoard writer
+        self._TBwr = tbwr or TBwr(logdir=self._get_model_dir(self.save_topdir, self.name)) if self.do_TB else None  # TensorBoard writer
 
         self._batcher = None
 
@@ -524,10 +519,10 @@ class MOTorch(ParaSave):
         """ returns model directory path """
         return f'{save_topdir}/{model_name}'
 
-    @staticmethod
-    def _get_ckpt_path(save_topdir:str, model_name:str) -> str:
+    @classmethod
+    def _get_ckpt_path(cls, save_topdir:str, model_name:str) -> str:
         """ returns path of checkpoint pickle file """
-        return f'{MOTorch._get_model_dir(save_topdir, model_name)}/{model_name}.pt'
+        return f'{cls._get_model_dir(save_topdir, model_name)}/{model_name}.pt'
 
 
     def load_ckpt(
@@ -537,7 +532,7 @@ class MOTorch(ParaSave):
     ) -> Optional[dict]:
         """ tries to load checkpoint and return additional data """
 
-        ckpt_path = MOTorch._get_ckpt_path(
+        ckpt_path = self._get_ckpt_path(
             save_topdir=    save_topdir or self.save_topdir,
             model_name=     name or self.name)
 
@@ -561,7 +556,7 @@ class MOTorch(ParaSave):
     ) -> None:
         """ saves model checkpoint & optionally additional data """
 
-        ckpt_path = MOTorch._get_ckpt_path(
+        ckpt_path = self._get_ckpt_path(
             save_topdir=    save_topdir or self.save_topdir,
             model_name=     name or self.name)
 
@@ -595,8 +590,8 @@ class MOTorch(ParaSave):
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
         if not save_topdir_trg: save_topdir_trg = save_topdir_src
         shutil.copyfile(
-            src=    MOTorch._get_ckpt_path(save_topdir_src, name_src),
-            dst=    MOTorch._get_ckpt_path(save_topdir_trg, name_trg))
+            src=cls._get_ckpt_path(save_topdir_src, name_src),
+            dst=cls._get_ckpt_path(save_topdir_trg, name_trg))
 
     @classmethod
     def copy_saved(
@@ -653,11 +648,11 @@ class MOTorch(ParaSave):
         prep_folder(f'{save_topdir_child}/{name_child}')
 
         mrg_ckpts(
-            ckptA=  MOTorch._get_ckpt_path(save_topdirA, nameA),
-            ckptB=  MOTorch._get_ckpt_path(save_topdirB, nameB),
-            ckptM=  MOTorch._get_ckpt_path(save_topdir_child, name_child),
-            ratio=  ratio,
-            noise=  noise)
+            ckptA=cls._get_ckpt_path(save_topdirA, nameA),
+            ckptB=cls._get_ckpt_path(save_topdirB, nameB),
+            ckptM=cls._get_ckpt_path(save_topdir_child, name_child),
+            ratio=ratio,
+            noise=noise)
 
     @classmethod
     def gx_saved(
@@ -955,6 +950,6 @@ class MOTorch(ParaSave):
         return sum([p.numel() for p in self._module.parameters()])
 
     def __str__(self):
-        s = f'MOTorch: {ParaSave.__str__(self)}\n'
+        s = f'{self.__class__.__name__} (MOTorch): {ParaSave.__str__(self)}\n'
         s += f'{str(self._module)}\n ### model size: {self.size} params'
         return s
