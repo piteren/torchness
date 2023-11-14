@@ -671,7 +671,7 @@ class MOTorch(ParaSave):
             save_topdir_parentB: Optional[str]= None,
             save_topdir_child: Optional[str]=   None,
             save_fn_pfx: Optional[str]=         None,
-            device=                             None, # to omit CUDA init
+            device=                             None,
             do_gx_ckpt=                         True,
             ratio: float=                       0.5,
             noise: float=                       0.03,
