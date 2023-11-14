@@ -209,7 +209,7 @@ class MOTorch(ParaSave):
             logger = get_pylogger(
                 name=       name,
                 add_stamp=  False,
-                folder=     None if _read_only else self._get_model_dir(save_topdir, name),
+                folder=     None if _read_only else self._get_model_dir(model_name=name, save_topdir=save_topdir),
                 level=      loglevel,
                 flat_child= flat_child)
         self._log = logger
@@ -386,7 +386,11 @@ class MOTorch(ParaSave):
         self.train(False)
         self._log.debug(f'> set {self.name} train.mode to False..')
 
-        self._TBwr = tbwr or TBwr(logdir=self._get_model_dir(self.save_topdir, self.name)) if self.do_TB else None  # TensorBoard writer
+        # TensorBoard writer
+        self._TBwr = tbwr or TBwr(
+            logdir=self._get_model_dir(
+                model_name=     self.name,
+                save_topdir=    self.save_topdir)) if self.do_TB else None
 
         self._batcher = None
 
@@ -516,27 +520,29 @@ class MOTorch(ParaSave):
 
     # *********************************************************************************************** load / save / copy
 
-    @staticmethod
-    def _get_model_dir(save_topdir:str, model_name:str) -> str:
+    @classmethod
+    def _get_model_dir(cls, model_name:str, save_topdir:Optional[str]=None) -> str:
         """ returns model directory path """
+        if not save_topdir: save_topdir = cls.SAVE_TOPDIR
         return f'{save_topdir}/{model_name}'
 
     @classmethod
-    def _get_ckpt_path(cls, save_topdir:str, model_name:str) -> str:
+    def _get_ckpt_path(cls, model_name:str, save_topdir:Optional[str]=None) -> str:
         """ returns path of checkpoint pickle file """
-        return f'{cls._get_model_dir(save_topdir, model_name)}/{model_name}.pt'
+        model_dir = cls._get_model_dir(model_name=model_name, save_topdir=save_topdir)
+        return f'{model_dir}/{model_name}.pt'
 
 
     def load_ckpt(
             self,
-            save_topdir: Optional[str]= None,  # allows to load from custom save_topdir
             name: Optional[str]=        None,  # allows to load custom name (model_name)
+            save_topdir: Optional[str]= None,  # allows to load from custom save_topdir
     ) -> Optional[dict]:
         """ tries to load checkpoint and return additional data """
 
         ckpt_path = self._get_ckpt_path(
-            save_topdir=    save_topdir or self.save_topdir,
-            model_name=     name or self.name)
+            model_name=     name or self.name,
+            save_topdir=    save_topdir or self.save_topdir)
 
         save_obj = None
 
@@ -552,15 +558,15 @@ class MOTorch(ParaSave):
 
     def save_ckpt(
             self,
-            save_topdir: Optional[str]=         None,   # allows to save in custom save_topdir
             name: Optional[str]=                None,   # allows to save under custom name (model_name)
+            save_topdir: Optional[str]=         None,   # allows to save in custom save_topdir
             additional_data: Optional[Dict]=    None,   # allows to save additional
     ) -> None:
         """ saves model checkpoint & optionally additional data """
 
         ckpt_path = self._get_ckpt_path(
-            save_topdir=    save_topdir or self.save_topdir,
-            model_name=     name or self.name)
+            model_name=     name or self.name,
+            save_topdir=    save_topdir or self.save_topdir)
 
         save_obj = {'model_state_dict': self._module.state_dict()}
         if additional_data: save_obj.update(additional_data)
@@ -592,8 +598,8 @@ class MOTorch(ParaSave):
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
         if not save_topdir_trg: save_topdir_trg = save_topdir_src
         shutil.copyfile(
-            src=cls._get_ckpt_path(save_topdir_src, name_src),
-            dst=cls._get_ckpt_path(save_topdir_trg, name_trg))
+            src=cls._get_ckpt_path(model_name=name_src, save_topdir=save_topdir_src),
+            dst=cls._get_ckpt_path(model_name=name_trg, save_topdir=save_topdir_trg))
 
     @classmethod
     def copy_saved(
@@ -608,9 +614,8 @@ class MOTorch(ParaSave):
         """ copies full MOTorch folder (POINT & checkpoints) """
 
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
-        if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
-
         if save_topdir_trg is None: save_topdir_trg = save_topdir_src
+        if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
 
         cls.copy_saved_point(
             name_src=           name_src,
@@ -650,9 +655,9 @@ class MOTorch(ParaSave):
         prep_folder(f'{save_topdir_child}/{name_child}')
 
         mrg_ckpts(
-            ckptA=cls._get_ckpt_path(save_topdirA, nameA),
-            ckptB=cls._get_ckpt_path(save_topdirB, nameB),
-            ckptM=cls._get_ckpt_path(save_topdir_child, name_child),
+            ckptA=cls._get_ckpt_path(model_name=nameA,      save_topdir=save_topdirA),
+            ckptB=cls._get_ckpt_path(model_name=nameB,      save_topdir=save_topdirB),
+            ckptM=cls._get_ckpt_path(model_name=name_child, save_topdir=save_topdir_child),
             ratio=ratio,
             noise=noise)
 

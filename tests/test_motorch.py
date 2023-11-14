@@ -214,7 +214,7 @@ class TestMOTorch(unittest.TestCase):
     def test_copy_saved(self):
 
         model = MOTorch(
-            module_type=        LinModel,
+            module_type=    LinModel,
             in_shape=       256,
             out_shape=      10,
             name_timestamp= True,
@@ -226,9 +226,7 @@ class TestMOTorch(unittest.TestCase):
         model.save()
 
         name_copied = f'{name}_copied'
-        MOTorch.copy_saved(
-            name_src=           name,
-            name_trg=           name_copied)
+        MOTorch.copy_saved(name_src=name, name_trg=name_copied)
 
         model = MOTorch(name=name_copied, logger=logger)
         print(model)
@@ -252,23 +250,23 @@ class TestMOTorch(unittest.TestCase):
         pms = model.get_managed_params()
         print(f'model.get_managed_params(): {pms}')
 
-        orig_seed = model['seed']
+        orig_seed = model.seed
         print(f'orig_seed: {orig_seed}')
         model.save()
 
         MOTorch.oversave_point(
-            name=   model["name"],
+            name=   model.name,
             seed=   252)
 
         # this will not load
         dna = model.load_point(
-            name=           model["name"],
+            name=           model.name,
             save_topdir=    'other')
         print(dna)
         self.assertFalse(dna)
 
         # this will load
-        dna = model.load_point(name=model["name"])
+        dna = model.load_point(name=model.name)
         print(dna)
         for p in pms:
             if p not in dna: print(p)
@@ -281,8 +279,8 @@ class TestMOTorch(unittest.TestCase):
             module_type=    LinModel,
             in_drop=        0.0,
             logger=         logger)
-        print(f'not loaded model in_shape: {model["in_shape"]}')
-        self.assertTrue(model['in_shape'] != 12)
+        print(f'not loaded model in_shape: {model.in_shape}')
+        self.assertTrue(model.in_shape != 12)
 
         # this model will load from MOTORCH_DIR
         model = MOTorch(
@@ -290,29 +288,28 @@ class TestMOTorch(unittest.TestCase):
             loglevel=       10,
             logger=         logger)
         print(model['in_shape'])
-        self.assertTrue(model['in_shape'] == 12)
+        self.assertTrue(model.in_shape == 12)
 
         model = MOTorch(
             module_type=    LinModel,
             name_timestamp= True,
+            family=         'c',
             in_shape=       12,
             out_shape=      12,
             in_drop=        0.0,
             logger=         logger)
         model.save()
-        print(model['name'])
+        print(model.name, model.family)
 
-        model = MOTorch(name=model['name'], logger=logger)
-        self.assertTrue(model['in_shape'] == 12)
+        model = MOTorch(name=model.name, logger=logger)
+        self.assertTrue(model.in_shape == 12)
 
-        model.copy_saved_point(
-            name_src=           model["name"],
-            name_trg=           'CopiedPS')
+        model.copy_saved_point(name_src=model.name, name_trg=f'{model.name}_copied')
 
         model.gx_saved_point(
-            name_parent_main=           model["name"],
-            name_parent_scnd=           None,
-            name_child=                 'GXed')
+            name_parentA=   model.name,
+            name_parentB=   None,
+            name_child=     'GXed')
 
         psdd = {'seed': [0,1000]}
         model = MOTorch(
@@ -323,17 +320,18 @@ class TestMOTorch(unittest.TestCase):
             logger=         logger)
 
         print(model.gxable)
-        print(model['psdd'])
-        print(model['seed'])
+        print(model.name)
+        print(model.family)
+        print(model.seed)
         dna = model.gx_point(
-            parent_main=    model,
-            prob_noise=     0.0,
-            prob_axis=      0.0)
+            parentA=    model,
+            prob_noise= 0.0,
+            prob_axis=  0.0)
         print(dna['seed'])
         dna = model.gx_point(
-            parent_main=    model,
-            prob_noise=     1.0,
-            prob_axis=      1.0)
+            parentA=    model,
+            prob_noise= 1.0,
+            prob_axis=  1.0)
         print(dna['seed'])
 
     def test_params_resolution(self):
