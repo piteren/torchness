@@ -19,7 +19,8 @@ class ScaledLR(torch.optim.lr_scheduler._LRScheduler):
             last_epoch=                 -1,
             logger=                     None):
 
-        if not logger: logger = get_pylogger()
+        if not logger:
+            logger = get_pylogger(name='ScaledLR')
         self._log = logger
 
         self._step = starting_step

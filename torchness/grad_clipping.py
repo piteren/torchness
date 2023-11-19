@@ -54,7 +54,7 @@ class GradClipperMAVG:
             loglevel=                   20,
     ):
         if not logger:
-            logger = get_pylogger(level=loglevel)
+            logger = get_pylogger(name='GradClipperMAVG', level=loglevel)
         self.logger = logger
 
         self.module = module

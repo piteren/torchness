@@ -71,7 +71,8 @@ def _get_devices_pypaq(
 ) -> List[Union[int,None]]:
     """ returns pypaq representation of given devices """
 
-    if not logger: logger = get_pylogger(level=loglevel)
+    if not logger:
+        logger = get_pylogger(name='_get_devices_pypaq', level=loglevel)
 
     if type(devices) is not list: devices = [devices]  # first convert to list
 
@@ -152,7 +153,7 @@ def get_devices(
     into dev_pypaq base form or List[str] (PyTorch namespace) """
 
     if not logger:
-        logger = get_pylogger(level=loglevel)
+        logger = get_pylogger(name='get_devices', level=loglevel)
 
     devices_base = _get_devices_pypaq(devices=devices, logger=logger)
 

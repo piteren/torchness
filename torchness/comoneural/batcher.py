@@ -35,7 +35,7 @@ class Batcher:
             seed=                                       123,
             logger=                                     None):
 
-        self.__log = logger or get_pylogger()
+        self.__log = logger or get_pylogger(name='Batcher')
 
         self.seed_counter = seed
         np.random.seed(self.seed_counter)
