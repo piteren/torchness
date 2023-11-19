@@ -189,10 +189,13 @@ class MOTorch(ParaSave):
         if not (name or module_type):
             raise MOTorchException('name OR module_type must be given!')
 
-        # resolve name
-        if not name:
-            name = f'{module_type.__name__}_MOTorch'
-        if name_timestamp: name += f'_{stamp()}'
+        name = self._get_name(
+            module_type=    module_type,
+            name=           name,
+            name_timestamp= name_timestamp)
+
+        if not save_topdir: save_topdir = self.SAVE_TOPDIR
+        if not save_fn_pfx: save_fn_pfx = self.SAVE_FN_PFX
 
         # some early kwargs overrides
 
@@ -398,6 +401,21 @@ class MOTorch(ParaSave):
 
         self._log.debug(str(self))
         self._log.info(f'MOTorch init finished!')
+
+    @classmethod
+    def _get_name(
+            cls,
+            module_type: Optional[type(Module)]=    None,
+            name: Optional[str]=                    None,
+            name_timestamp=                         False,
+    ) -> str:
+        """ resolves MOTorch name """
+        # resolve name
+        if not name:
+            name = f'{module_type.__name__}_{cls.__name__}'
+        if name_timestamp:
+            name += f'_{stamp()}'
+        return name
 
     # **************************************************************************** model call (run NN with data) methods
 
