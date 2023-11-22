@@ -175,7 +175,6 @@ class MOTorch(ParaSave):
             name_timestamp=                         False,
             save_topdir: Optional[str]=             None,
             save_fn_pfx: Optional[str]=             None,
-            empty_cuda_cache: bool=                 True, # releases all unoccupied cached memory after model call currently held by the caching allocator
             tbwr: Optional[TBwr]=                   None,
             logger=                                 None,
             loglevel=                               20,
@@ -397,8 +396,6 @@ class MOTorch(ParaSave):
 
         self._batcher = None
 
-        self._empty_cuda_cache = empty_cuda_cache
-
         self._log.debug(str(self))
         self._log.info(f'MOTorch init finished!')
 
@@ -425,6 +422,7 @@ class MOTorch(ParaSave):
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for dropout etc
             no_grad=                        True,   # by default gradients calculation is disabled for FWD call
+            empty_cuda_cache=               True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
             **kwargs
     ) -> DTNS:
         """ forward (FWD) call
@@ -451,7 +449,7 @@ class MOTorch(ParaSave):
         if set_training:
             self.train(False)
 
-        if self._empty_cuda_cache:
+        if empty_cuda_cache:
             torch.cuda.empty_cache()
 
         return out
@@ -479,6 +477,7 @@ class MOTorch(ParaSave):
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for not None forces given training mode for torch.nn.Module
             no_grad=                        False,  # by default gradients calculation is enabled for loss call
+            empty_cuda_cache=               True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
             **kwargs) -> DTNS:
         """ forward + loss call on NN """
 
@@ -499,7 +498,7 @@ class MOTorch(ParaSave):
         if set_training:
             self.train(False)
 
-        if self._empty_cuda_cache:
+        if empty_cuda_cache:
             torch.cuda.empty_cache()
 
         return out
@@ -510,6 +509,7 @@ class MOTorch(ParaSave):
             *args,
             bypass_data_conv=   False,
             set_training: bool= True,   # for backward training mode is set to True by default
+            empty_cuda_cache=   True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
             **kwargs
     ) -> DTNS:
         """ backward call on NN, runs loss calculation + update of Module """
@@ -519,6 +519,7 @@ class MOTorch(ParaSave):
             bypass_data_conv=   bypass_data_conv,
             set_training=       set_training,
             no_grad=            False, # True makes no sense with backward()
+            empty_cuda_cache=   empty_cuda_cache,
             **kwargs)
 
         self._opt.zero_grad()               # clear gradients
@@ -531,7 +532,7 @@ class MOTorch(ParaSave):
         out['currentLR'] = self._scheduler.get_last_lr()[0] # INFO: currentLR of the first group is taken
         out.update(gnD)
 
-        if self._empty_cuda_cache:
+        if empty_cuda_cache:
             torch.cuda.empty_cache()
 
         return out
