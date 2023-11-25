@@ -38,7 +38,7 @@ class Batcher:
         self.__log = logger or get_pylogger(name='Batcher')
 
         self.seed_counter = seed
-        np.random.seed(self.seed_counter)
+        self.rng = np.random.default_rng(self.seed_counter)
 
         if batching_type not in BATCHING_TYPES:
             raise BatcherException('unknown batching_type')
@@ -85,11 +85,11 @@ class Batcher:
             split_TS: float,
             seed: int):
 
-        np.random.seed(seed)
+        rng = np.random.default_rng(seed)
 
         keys = list(data.keys())
         d_len = len(data[keys[0]])
-        indices = np.random.permutation(d_len)
+        indices = rng.permutation(d_len)
         nVL = int(d_len * split_VL)
         nTS = int(d_len * split_TS)
         nTR = d_len - nVL - nTS
@@ -116,14 +116,14 @@ class Batcher:
             self._data_ixmap += list(range(self._data_len_TR))
 
         if self.btype == 'random':
-            self._data_ixmap += np.random.choice(
+            self._data_ixmap += self.rng.choice(
                 a=          self._data_len_TR,
                 size=       self._batch_size,
                 replace=    False).tolist()
 
         if self.btype == 'random_cov':
             new_ixmap = np.arange(self._data_len_TR)
-            np.random.shuffle(new_ixmap)
+            self.rng.shuffle(new_ixmap)
             new_ixmap = new_ixmap.tolist()
             self._data_ixmap += new_ixmap
 
@@ -135,7 +135,7 @@ class Batcher:
     def get_batch(self) -> dict:
 
         # set seed
-        np.random.seed(self.seed_counter)
+        self.rng = np.random.default_rng(self.seed_counter)
         self.seed_counter += 1
 
         if len(self._data_ixmap) < self._batch_size: self._extend_ixmap()
