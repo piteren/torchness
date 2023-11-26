@@ -283,7 +283,7 @@ class MOTorch(ParaSave):
         # device parameter, may be given to MOTorch in DevicesTorchness type
         # it needs to be cast to PyTorch namespace here
         self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
-        self._log.debug(f'>> torch.cuda.is_available(): {torch.cuda.is_available()}')
+        self._log.debug(f'> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(
             devices=            self._point["device"],
             torch_namespace=    True,
@@ -300,23 +300,24 @@ class MOTorch(ParaSave):
         self._module_point = point_trim(module_type, self._point)
         self._module_point['logger'] = get_child(self._log, 'Module_logger')
 
-        _kwargs_not_used = {}
-        for k in kwargs:
-            if k not in self._module_point:
-                _kwargs_not_used[k] = kwargs[k]
-
         ### report
 
-        self._log.debug(f'> {self.name} POINT sources:')
-        self._log.debug(f'>> PARASAVE_DEFAULTS:         {ParaSave.PARASAVE_DEFAULTS}')
-        self._log.debug(f'>> MOTORCH_DEFAULTS:          {self.MOTORCH_DEFAULTS}')
-        self._log.debug(f'>> Module.__init__ defaults:  {_module_init_def}')
-        self._log.debug(f'>> POINT saved:               {point_saved}')
-        self._log.debug(f'>> given kwargs:              {kwargs}')
-        self._log.debug(f'> resolved POINT:')
-        self._log.debug(f'Module complete POINT:        {self._module_point}')
-        self._log.debug(f'>> kwargs not used by Module: {_kwargs_not_used}')
-        self._log.debug(f'{self.name} complete POINT:\n{self._point}')
+        self._log.debug(f'{self.name} POINT sources:')
+        self._log.debug(f'> PARASAVE_DEFAULTS:        {ParaSave.PARASAVE_DEFAULTS}')
+        self._log.debug(f'> MOTORCH_DEFAULTS:         {self.MOTORCH_DEFAULTS}')
+        self._log.debug(f'> Module.__init__ defaults: {_module_init_def}')
+        self._log.debug(f'> POINT saved:              {point_saved}')
+        self._log.debug(f'> given kwargs:             {kwargs}')
+        self._log.debug(f'Module complete POINT:      {self._module_point}')
+        self._log.debug(f'MOTorch complete POINT:     {self._point}')
+
+        _kwargs_not_used = {}
+        motorch_params = list(ParaSave.PARASAVE_DEFAULTS.keys()) + list(self.MOTORCH_DEFAULTS.keys())
+        for k in kwargs:
+            if k not in self._module_point and k not in motorch_params:
+                _kwargs_not_used[k] = kwargs[k]
+        if _kwargs_not_used:
+            self._log.warning(f'> there are kwargs given but not used by MOTorch nor Module: {_kwargs_not_used}')
 
         self.update(self._point)
 
