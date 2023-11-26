@@ -312,9 +312,11 @@ class MOTorch(ParaSave):
         self._log.debug(f'MOTorch complete POINT:     {self._point}')
 
         _kwargs_not_used = {}
-        motorch_params = list(ParaSave.PARASAVE_DEFAULTS.keys()) + list(self.MOTORCH_DEFAULTS.keys())
+        out = get_class_init_params(MOTorch)
+        motorch_init_params = out['without_defaults'] + list(out['with_defaults'].keys())
+        motorch_params_all = list(ParaSave.PARASAVE_DEFAULTS.keys()) + list(self.MOTORCH_DEFAULTS.keys()) + motorch_init_params
         for k in kwargs:
-            if k not in self._module_point and k not in motorch_params:
+            if k not in self._module_point and k not in motorch_params_all:
                 _kwargs_not_used[k] = kwargs[k]
         if _kwargs_not_used:
             self._log.warning(f'> there are kwargs given but not used by MOTorch nor Module: {_kwargs_not_used}')
