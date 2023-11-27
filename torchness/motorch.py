@@ -36,7 +36,7 @@ class Module(torch.nn.Module):
         self.logger = logger
 
 
-    def forward(self, *args, **kwargs) -> DTNS:
+    def forward(self, **kwargs) -> DTNS:
         """ forward pass (FWD) function
         returned DTNS should have at least 'logits' key
         with logits tensor for proper MOTorch.run_train()
@@ -76,7 +76,7 @@ class Module(torch.nn.Module):
         raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
 
 
-    def loss(self, *args, **kwargs) -> DTNS:
+    def loss(self, **kwargs) -> DTNS:
         """ forward + loss function
         returned DTNS should be: .forward() DTNS updated with loss (and optional acc, f1)
 
@@ -421,7 +421,6 @@ class MOTorch(ParaSave):
 
     def __call__(
             self,
-            *args,
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for dropout etc
             no_grad=                        True,   # by default gradients calculation is disabled for FWD call
@@ -439,14 +438,13 @@ class MOTorch(ParaSave):
             self.train(set_training)
 
         if not (bypass_data_conv or self.bypass_data_conv):
-            args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
         if no_grad:
             with torch.no_grad():
-                out = self._module(*args, **kwargs)
+                out = self._module(**kwargs)
         else:
-            out = self._module(*args, **kwargs)
+            out = self._module(**kwargs)
 
         # eventually roll back to MOTorch default
         if set_training:
@@ -476,7 +474,6 @@ class MOTorch(ParaSave):
 
     def loss(
             self,
-            *args,
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for not None forces given training mode for torch.nn.Module
             no_grad=                        False,  # by default gradients calculation is enabled for loss call
@@ -488,14 +485,13 @@ class MOTorch(ParaSave):
             self.train(set_training)
 
         if not (bypass_data_conv or self.bypass_data_conv):
-            args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
         if no_grad:
             with torch.no_grad():
-                out = self._module.loss(*args, **kwargs)
+                out = self._module.loss(**kwargs)
         else:
-            out = self._module.loss(*args, **kwargs)
+            out = self._module.loss(**kwargs)
 
         # eventually roll back to MOTorch default
         if set_training:
@@ -509,7 +505,6 @@ class MOTorch(ParaSave):
 
     def backward(
             self,
-            *args,
             bypass_data_conv=   False,
             set_training: bool= True,   # for backward training mode is set to True by default
             empty_cuda_cache=   True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
@@ -518,7 +513,6 @@ class MOTorch(ParaSave):
         """ backward call on NN, runs loss calculation + update of Module """
 
         out = self.loss(
-            *args,
             bypass_data_conv=   bypass_data_conv,
             set_training=       set_training,
             no_grad=            False, # True makes no sense with backward()
@@ -960,13 +954,20 @@ class MOTorch(ParaSave):
     def tbwr(self):
         return self._TBwr
 
-    def log_TB(
-            self,
-            value,
-            tag: str,
-            step: int) -> None:
+    def log_TB(self, value, tag:str, step:Optional[int]=None):
         """ logs value to TB """
-        if self.do_TB: self._TBwr.add(value=value, tag=tag, step=step)
+        if step is None:
+            step = self.train_step
+        if self.do_TB:
+            self._TBwr.add(value=value, tag=tag, step=step)
+        else: self._log.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
+
+    def log_histogram_TB(self, values, tag:str, step:Optional[int]=None, bins="tensorflow"):
+        """ logs values to TB histogram """
+        if step is None:
+            step = self.train_step
+        if self.do_TB:
+            self._TBwr.add_histogram(values=values, tag=tag, step=step, bins=bins)
         else: self._log.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
 
     @property
