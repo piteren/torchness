@@ -186,6 +186,31 @@ class TestEncoders(unittest.TestCase):
             print(f'out.shape: {out.shape}')
             print(f'state.shape: {state.shape}')
 
+    def test_LayBlockCNN_moving_history(self):
+
+        n_filters = 6
+        lay_cnn = LayBlockCNN(n_filters)
+
+        history = lay_cnn.get_zero_history()
+        print(f'history.shape: {history.shape}')
+        print(f'history: {history}')
+
+        state = history
+        for ix in range(5):
+            print(f'== {ix} ====================')
+            inp = torch.rand(1, n_filters)
+            print(f'inp: {inp}')
+            print(f'state: {state}')
+            state_prev = state
+            cnn_out = lay_cnn(inp, history=state)
+            out = cnn_out['out']
+            state = cnn_out['state']
+            print(f'out: {out}')
+            print(f'state: {state}')
+            print(state_prev[1])
+            print(state[0])
+            self.assertTrue(torch.equal(state_prev[1], state[0]))
+
     def test_LayBlockCNN_base_encoder(self):
 
         n_time = 6
