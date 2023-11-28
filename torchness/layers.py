@@ -7,8 +7,9 @@ from torchness.types import ACT, INI, TNS
 from torchness.base_elements import my_initializer
 
 
-# my dense layer, linear with initializer + activation
+
 class LayDense(torch.nn.Linear):
+    """ my dense layer, linear with initializer + activation """
 
     def __init__(
             self,
@@ -49,8 +50,10 @@ class LayDense(torch.nn.Linear):
         act_info = '' if self.activation else ', activation=None'
         return f'in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}{act_info}'
 
-# time & feats dropout (for sequences), inp tensor [..,seq,feats]
+
 class TF_Dropout(torch.nn.Dropout):
+    """ Time & Feats Dropout -> for sequences
+    general pattern od inp tensor shape: [batch, seq, feats] """
 
     def __init__(
             self,
@@ -91,8 +94,9 @@ class TF_Dropout(torch.nn.Dropout):
     def extra_repr(self) -> str:
         return f'time_drop={self.time_drop}, feat_drop={self.feat_drop}, inplace={self.inplace}'
 
-# my Conv1D, with initializer + activation
+
 class LayConv1D(torch.nn.Conv1d):
+    """ my Conv1D, with initializer + activation """
 
     def __init__(
             self,
@@ -128,12 +132,11 @@ class LayConv1D(torch.nn.Conv1d):
         if not initializer: initializer = my_initializer
         initializer(self.weight)
         if self.bias is not None:
-            torch.nn.init.zeros_(self.bias)
-
             # original Conv1D (with uniform) reset for bias
             # fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
             # bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             # torch.nn.init.uniform_(self.bias, -bound, bound)
+            torch.nn.init.zeros_(self.bias)
 
     def forward(self, inp:TNS) -> TNS:
         inp_trans = torch.transpose(input=inp, dim0=-1, dim1=-2) # transposes inp to (N,C,L) <- (N,L,C), since torch.nn.Conv1d assumes that channels is @ -2 dim
@@ -142,8 +145,9 @@ class LayConv1D(torch.nn.Conv1d):
         if self.activation: out = self.activation(out)
         return out
 
-# Residual Layer with dropout for bypass inp
+
 class LayRES(torch.nn.Module):
+    """ Residual Layer with dropout for bypass inp """
 
     def __init__(
             self,

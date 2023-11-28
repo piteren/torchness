@@ -20,11 +20,14 @@ class LayBlockDRT(torch.nn.Module):
             lay_dropout: float=         0.0,            # dropout after dense/s
             residual: bool=             True,           # residual yes/no
             res_dropout: float=         0.0,            # dropout on residual connection
+            do_zeroes: bool=            True,
             device=                     None,
             dtype=                      None,
             initializer: INI=           None):
 
-        super(LayBlockDRT, self).__init__()
+        super().__init__()
+
+        self.do_zeroes = do_zeroes
 
         if initializer is None: initializer = my_initializer
 
@@ -73,10 +76,13 @@ class LayBlockDRT(torch.nn.Module):
 
     def forward(self, inp:TNS) -> DTNS:
 
+        zs = None
+
         out = self.ln_in(inp)
 
         out = self.denses[0](out)
-        zs = zeroes(out)
+        if self.do_zeroes:
+            zs = zeroes(out).detach()
 
         if len(self.denses) > 1: # there is second one, without activation
 
@@ -93,7 +99,7 @@ class LayBlockDRT(torch.nn.Module):
 
         return {
             'out':      out,
-            'zeroes':   zs.detach()}
+            'zeroes':   zs}
 
 
 class EncDRT(torch.nn.Module):
@@ -181,7 +187,22 @@ class EncDRT(torch.nn.Module):
 class LayBlockCNN(torch.nn.Module):
     """ Block (Layer) of EncCNN
     LN > CNN > act > drop > RES > LayBlockDRT
-    number of parameters: kernel*in_features*n_filters """
+
+    in general input for LayBlockCNN has a shape of:
+                [feats] - single element (token == sequence of lenht 1)
+           [seq, feats] - sequence of seq tokens
+    [batch, seq, feats] - batch of sequences (each of seq tokens)
+
+    * be careful about batch of single token sequences, input should have shape:
+        [batch, 1, feats]  (NOT: [batch, feats] <- this is a single sequence)
+
+    history for casual encoder has in general shape:
+    [batch, kernel_size-1, feats]
+
+    zero_history (initial history) is a tensor of zeroes of shape:
+    [kernel_size-1, feats], its batch size will be extended to the given input
+
+    EncCNN - number of parameters: kernel*in_features*n_filters """
 
     def __init__(
             self,
@@ -199,17 +220,19 @@ class LayBlockCNN(torch.nn.Module):
             ldrt_residual: bool=        True,
             ldrt_res_dropout: float=    0.0,
             # other
+            do_zeroes: bool=            True,
             detach_history: bool=       True,           # by default state (history) will be detached on output
             device=                     None,
             dtype=                      None,
             initializer: INI=           None):
 
-        super(LayBlockCNN, self).__init__()
+        super().__init__()
 
         self.n_filters = n_filters
         self.padded = padded
         if kernel_size % 2 == 0: raise TorchnessException('LayBlockCNN kernel_size cannot be even number')
         self.kernel_size = kernel_size
+        self.do_zeroes = do_zeroes
 
         self.lay_ln = torch.nn.LayerNorm(
             normalized_shape=   self.n_filters,
@@ -230,7 +253,9 @@ class LayBlockCNN(torch.nn.Module):
 
         self.lay_drop = torch.nn.Dropout(p=lay_dropout) if lay_dropout else None
 
-        self.res = LayRES(in_features=self.n_filters, dropout=res_dropout)
+        self.res = LayRES(
+            in_features=    self.n_filters,
+            dropout=        res_dropout)
 
         self.lay_DRT = LayBlockDRT(
             in_width=       self.n_filters,
@@ -240,74 +265,72 @@ class LayBlockCNN(torch.nn.Module):
             lay_dropout=    ldrt_drop,
             residual=       ldrt_residual,
             res_dropout=    ldrt_res_dropout,
+            do_zeroes=      self.do_zeroes,
             device=         device,
             dtype=          dtype,
             initializer=    initializer) if do_ldrt else None
 
         self.detach_history = detach_history
 
-    def _get_zero_history_base(self) -> TNS:
-        """ prepares baseline 2-dim zero_history """
-        in_sh = [self.kernel_size-1, self.n_filters]
-        return torch.zeros(in_sh)
-
-    def get_zero_history(self, inp:Optional[TNS]=None) -> TNS:
-        """ prepares initial history for casual mode, history has shape [.., kernel_size-1, n_filters] """
-        zhb = self._get_zero_history_base()
-        if inp is None: return zhb
-        else:           return zhb.expand(list(inp.shape)[:-2] + list(zhb.shape))
+    def get_zero_history(self) -> TNS:
+        """ prepares initial history for casual mode
+        zero_history shape: [kernel_size-1, n_filters] """
+        return torch.zeros([self.kernel_size-1, self.n_filters])
 
     def forward(
             self,
-            inp: TNS,                       # at least 2-dim tensor: [.., seq, feats]
-            history: Optional[TNS]= None,   # history must be given for casual mode
+            inp: TNS,
+            history: Optional[TNS]= None,  # history must be given for casual mode
     ) -> DTNS:
 
-        zsL = []
+        inp_orig_shape = inp.shape
+
+        # expand single token
+        if len(inp_orig_shape) == 1:
+            inp = inp.expand([1, inp_orig_shape[0]])
+
+        inp_shape = inp.shape
+
+        zsL = [] if self.do_zeroes else None
         out = self.lay_ln(inp)
 
-        ### pad out and prepare state for return
-
         state = None
-        if self.padded:
 
-            proper_history_shape = list(inp.shape)[:-2] + [self.kernel_size-1, self.n_filters]
+        # concatenate with history on the left -> casual block
+        if history is not None:
 
-            # pad with zeroes on both sides (encoder), ..but no state to return
-            if history is None:
-                pad_shape = proper_history_shape
-                pad_shape[-2] = pad_shape[-2] // 2
-                pad = torch.zeros(pad_shape).to(out.device, out.dtype)
-                conc = [pad, out, pad]
-                out = torch.concat(conc, dim=-2)
+            history_shape = history.shape
 
-            # concatenate with history on the left (casual block)
-            else:
+            if history_shape[-1] != inp_shape[-1] or history_shape[-2] != self.kernel_size-1:
+                raise TorchnessException(f'wrong history shape, given: {history_shape}')
 
-                if not list(history.shape) == proper_history_shape:
-                    raise TorchnessException(f'wrong histy shape, given {history.shape}, should be {proper_history_shape}')
-                conc = [history, out]
-                out = torch.concat(conc, dim=-2)
+            if list(inp_shape[:-2]) != list(history_shape[:-2]):
+                history = history.expand(list(inp_shape[:-2]) + list(history_shape))
 
-                # prepare state
-                inp_for_state = inp
-                if inp_for_state.size(-2) < proper_history_shape[-2]: # inp is shorter than history
-                    pad_shape = list(inp_for_state.shape)
-                    pad_shape[-2] = proper_history_shape[-2] - inp_for_state.size(-2)
-                    pad = torch.zeros(pad_shape).to(inp)
-                    inp_for_state = torch.concat([pad,inp_for_state], dim=-2)
-                sections = [inp_for_state.size(-2)-proper_history_shape[-2], proper_history_shape[-2]]
-                state_spl = torch.split(
-                    tensor=                 inp_for_state,
-                    split_size_or_sections= sections,
-                    dim=                    -2)
-                state = state_spl[-1]
+            out = torch.concat([history.to(out.device, out.dtype), out], dim=-2)
+
+            # prepare state
+            state_spl = torch.split(
+                tensor=                 out,
+                split_size_or_sections= [out.size(-2)-self.kernel_size+1, self.kernel_size-1],
+                dim=                    -2)
+            state = state_spl[-1]
+
+        # pad both sides
+        if history is None and self.padded:
+
+            pad_shape = list(inp_shape)
+            pad_shape[-2] = (self.kernel_size-1) // 2
+            pad = torch.zeros(pad_shape).to(out.device, out.dtype)
+
+            out = torch.concat([pad, out, pad], dim=-2)
 
         out = self.lay_conv1D(out)
 
         if self.activation:
             out = self.activation(out)
-            zsL.append(zeroes(out))
+            if self.do_zeroes:
+                zsL.append(zeroes(out))
 
         if self.lay_drop:
             out = self.lay_drop(out)
@@ -319,20 +342,29 @@ class LayBlockCNN(torch.nn.Module):
         if self.lay_DRT:
             lay_out = self.lay_DRT(out)
             out = lay_out['out']
-            zsL.append(lay_out['zeroes'])
+            if self.do_zeroes:
+                zsL.append(lay_out['zeroes'])
+
+        if len(inp_orig_shape) == 1:
+            out = torch.squeeze(out, dim=0)
 
         if state is not None and self.detach_history:
             state = state.detach()
 
+        if zsL:
+            zsL = torch.cat(zsL).detach()
+
         return {
             'out':      out,
             'state':    state,
-            'zeroes':   torch.cat(zsL).detach()}
+            'zeroes':   zsL}
 
 
 class EncCNN(torch.nn.Module):
     """ CNN 1D Encoder (for sequences)
-    number of parameters: projection + n_layers*LayBlockCNN """
+    encoder built of stacked layers of LayBlockCNN
+
+    EncCNN - number of parameters: projection + n_layers*LayBlockCNN """
 
     def __init__(
             self,
@@ -356,6 +388,7 @@ class EncCNN(torch.nn.Module):
             ldrt_residual: bool=        True,
             ldrt_res_dropout: float=    0.0,
             # other
+            do_zeroes: bool=            True,
             detach_history: bool=       True,           # by default state (history) will be detached in output
             device=                     None,
             dtype=                      None,
@@ -367,6 +400,7 @@ class EncCNN(torch.nn.Module):
         self.n_layers = n_layers
         self.kernel_size = kernel_size
         self.n_filters = n_filters or self.in_features
+        self.do_zeroes = do_zeroes
 
         self.in_TFdrop_lay = TF_Dropout(
             time_drop=  time_drop,
@@ -396,6 +430,7 @@ class EncCNN(torch.nn.Module):
             ldrt_drop=          ldrt_drop,
             ldrt_residual=      ldrt_residual,
             ldrt_res_dropout=   ldrt_res_dropout,
+            do_zeroes=          self.do_zeroes,
             detach_history=     detach_history,
             device=             device,
             dtype=              dtype,
@@ -410,22 +445,26 @@ class EncCNN(torch.nn.Module):
             device=             device,
             dtype=              dtype)
 
-    def get_zero_history(self, inp:Optional[TNS]=None) -> TNS:
+    def get_zero_history(self) -> TNS:
         """ prepares initial history for casual mode
-        history has shape [.., n_layers, kernel_size-1, n_filters] """
-        block_zero_history = self.blocks[0].get_zero_history(inp)
-        bzhs = list(block_zero_history.shape)
-        block_zero_history = block_zero_history.view(bzhs[:-2] + [1] + bzhs[-2:]) # add dim
-        return block_zero_history.expand(bzhs[:-2] + [self.n_layers] + bzhs[-2:]) # expand
+        zero_history shape: [n_layers, kernel_size-1, n_filters] """
+        block_zero_history = self.blocks[0].get_zero_history()
+        return block_zero_history.expand([self.n_layers] + list(block_zero_history.shape))
 
     def forward(
             self,
             inp: TNS,
-            history: Optional[TNS]= None, # if history will be given -> works in casual mode
+            history: Optional[TNS]= None, # history must be given for casual mode
     ) -> DTNS:
 
+        inp_orig_shape = inp.shape
+
+        # expand single token (it will disable expansion in every block -> speed-up)
+        if len(inp_orig_shape) == 1:
+            inp = inp.expand([1, inp_orig_shape[0]])
+
         states = []  # here we will store block states to concatenate them finally
-        zsL = []
+        zsL = [] if self.do_zeroes else None
 
         if self.in_TFdrop_lay:
             inp = self.in_TFdrop_lay(inp)
@@ -433,22 +472,36 @@ class EncCNN(torch.nn.Module):
         if self.projection_lay:
             inp = self.projection_lay(inp)
 
-        output = inp  # for 0 layers case
+        output = inp
+
         histories = torch.split(history, 1, dim=-3) if history is not None else [None]*self.n_layers
-        for block,hist in zip(self.blocks, histories):
-            if hist is not None: hist = torch.squeeze(hist, dim=-3)
+
+        for block, hist in zip(self.blocks, histories):
+
+            if hist is not None:
+                hist = torch.squeeze(hist, dim=-3)
+
             block_out = block(output, history=hist)
             output = block_out['out']
+
             if block_out['state'] is not None:
                 states.append(torch.unsqueeze(block_out['state'], dim=-3))
-            zsL.append(block_out['zeroes'])
+
+            if self.do_zeroes:
+                zsL.append(block_out['zeroes'])
 
         output = self.out_ln(output)
 
+        if len(inp_orig_shape) == 1:
+            output = torch.squeeze(output, dim=0)
+
+        if zsL:
+            zsL = torch.cat(zsL).detach()
+
         return {
             'out':      output,
-            'state':    torch.cat(states,dim=-3) if states else None,
-            'zeroes':   torch.cat(zsL).detach()}
+            'state':    torch.cat(states, dim=-3) if states else None,
+            'zeroes':   zsL}
 
 
 class MyMHA(torch.nn.MultiheadAttention):
@@ -487,10 +540,11 @@ class LayBlockTNS(torch.nn.Module):
             dropout_att: float= 0.0,            # in original (torch.nn..) implementation dropout_att == dropout
             activation: ACT=    torch.nn.ReLU,
             dropout_res: float= 0.0,            # dropout on residual bypass
+            do_zeroes: bool=    True,
             device=             None,
             dtype=              None):
 
-        super(LayBlockTNS, self).__init__()
+        super().__init__()
 
         self.norm1 = torch.nn.LayerNorm(
             normalized_shape=   d_model,
@@ -524,6 +578,7 @@ class LayBlockTNS(torch.nn.Module):
             lay_dropout=        dropout,
             residual=           True,
             res_dropout=        dropout_res,
+            do_zeroes=          do_zeroes,
             device=             device,
             dtype=              dtype,
             initializer=        bert_initializer)
@@ -578,12 +633,14 @@ class EncTNS(torch.nn.Module):
             dropout_att: float=                     0.0,
             activation: ACT=                        torch.nn.ReLU,
             dropout_res: float=                     0.0,
+            do_zeroes: bool=                        True,
             device=                                 None,
             dtype=                                  None):
 
-        super(EncTNS, self).__init__()
+        super().__init__()
 
         self.d_model = d_model
+        self.do_zeroes = do_zeroes
 
         # positional embeddings (trainable)
         self.pos_emb = None
@@ -619,6 +676,7 @@ class EncTNS(torch.nn.Module):
             dropout_att=    dropout_att,
             activation=     activation,
             dropout_res=    dropout_res,
+            do_zeroes=      self.do_zeroes,
             device=         device,
             dtype=          dtype,
         ) for _ in range(num_layers_to_build)]
@@ -643,11 +701,9 @@ class EncTNS(torch.nn.Module):
 
         output = inp
 
-        """
-            it is possible to receive higher than 3-dim input [batch,seq,feats]
-            we need to flatten such dim since it is not supported by native torch Transformer:
-            "query should be unbatched 2D or batched 3D tensor but received 4-D query tensor <- MultiheadAttention(Module)"
-        """
+        # it is possible to receive higher than 3-dim input [batch,seq,feats]
+        # we need to flatten such dim since it is not supported by native torch Transformer:
+        # "query should be unbatched 2D or batched 3D tensor but received 4-D query tensor" <- MultiheadAttention(Module)
         orig_shape = output.shape
         if len(orig_shape) > 3:
             output = output.view([-1] + list(orig_shape)[-2:])
@@ -656,17 +712,17 @@ class EncTNS(torch.nn.Module):
         if self.pos_emb is not None:
             output += self.pos_emb[:output.size(-2)]
 
-        zsL = []
+        zsL = [] if self.do_zeroes else None
         for mod in self.layers:
             block_out = mod(inp=output, inp_mask=mask)
             output = block_out['out']
-            zsL.append(block_out['zeroes'])
+            if self.do_zeroes:
+                zsL.append(block_out['zeroes'])
 
         # pass through task-attention layers
         if self.layers_TAT:
 
             seq = output
-
 
             if self.initial_task_query is not None:
                 task_query = self.initial_task_query                # from model
@@ -680,7 +736,8 @@ class EncTNS(torch.nn.Module):
             for mod in self.layers_TAT:
                 block_out = mod(inp=seq, task_query=task_query, inp_mask=mask)
                 task_query = block_out['out']
-                zsL.append(block_out['zeroes'])
+                if self.do_zeroes:
+                    zsL.append(block_out['zeroes'])
             output = torch.flatten(task_query,-2,-1) # remove seq (-2) dimension of size 1
 
         output = self.norm(output)
@@ -689,9 +746,12 @@ class EncTNS(torch.nn.Module):
         if len(orig_shape) > 3:
             output = output.view(orig_shape)
 
+        if zsL:
+            zsL = torch.cat(zsL).detach()
+
         return {
             'out':      output,
-            'zeroes':   torch.cat(zsL).detach()}
+            'zeroes':   zsL}
 
     def _encode_pyramidal(self, inp:TNS, pyramide: Union[Tuple[int],int]) -> DTNS:
         """ pyramidal_encoding """
@@ -717,9 +777,20 @@ class EncTNS(torch.nn.Module):
             mask: Optional[TNS]=                        None,
             pyramide: Optional[Union[Tuple[int],int]]=  None) -> DTNS:
 
+        inp_orig_shape = inp.shape
+
+        # expand single token
+        if len(inp_orig_shape) == 1:
+            inp = inp.expand([1, inp_orig_shape[0]])
+
         if pyramide:
             if mask is not None:
                 raise TorchnessException('mask is not supported for pyramidal encoding')
-            return self._encode_pyramidal(inp, pyramide)
+            enc_out = self._encode_pyramidal(inp, pyramide)
         else:
-            return self._encode(inp, mask)
+            enc_out = self._encode(inp, mask)
+
+        if len(inp_orig_shape) == 1:
+            enc_out['out'] = torch.squeeze(enc_out['out'], dim=0)
+
+        return enc_out
