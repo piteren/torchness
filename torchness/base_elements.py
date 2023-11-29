@@ -126,9 +126,8 @@ def scaled_cross_entropy(
     if probs is None:
         probs = torch.nn.functional.softmax(input=logits, dim=-1)
 
-    prob_label = probs[range(len(labels)), labels] # probability of class from label
-
     # merge loss for positive and negative scale
+    prob_label = select_with_indices(probs, labels)
     ce = torch.where(
         condition=  scale > 0,
         input=      -torch.log(prob_label),
