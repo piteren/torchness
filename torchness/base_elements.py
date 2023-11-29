@@ -104,11 +104,21 @@ def ckpt_nfo(
         print(f'Checkpoints {"are equal" if are_equal else "are NOT equal"}')
 
 
+def select_with_indices(source:TNS, indices:TNS) -> TNS:
+    """ selects from the (multidimensional dim) source
+    values from the last axis
+    given with indices (dim-1) tensor of ints """
+    indices = torch.unsqueeze(indices, dim=-1)
+    source_selected = torch.gather(source, dim=-1, index=indices)
+    return torch.squeeze(source_selected, dim=-1)
+
+
 def scaled_cross_entropy(
         labels: TNS,
         scale: TNS,
-        logits: Optional[torch.Tensor]= None,
-        probs: Optional[torch.Tensor]=  None) -> DTNS:
+        logits: Optional[TNS]= None,
+        probs: Optional[TNS]=  None,
+) -> DTNS:
 
     if logits is None and probs is None:
         raise TorchnessException('logits OR probs must be given!')
@@ -127,14 +137,3 @@ def scaled_cross_entropy(
     return {
         'scaled_cross_entropy': ce * torch.abs(scale),
         'cross_entropy':        ce}
-
-def select_with_indices(
-        source: TNS,
-        indices: TNS,
-) -> TNS:
-    """selects from the (multidimensional dim) source values from the last axis
-    given with indices (dim-1) tensor (int)
-    """
-    indices = torch.unsqueeze(indices, dim=-1)
-    source_selected = torch.gather(source, dim=-1, index=indices)
-    return torch.squeeze(source_selected, dim=-1)
