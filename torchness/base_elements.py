@@ -113,12 +113,21 @@ def select_with_indices(source:TNS, indices:TNS) -> TNS:
     return torch.squeeze(source_selected, dim=-1)
 
 
-def scaled_cross_entropy(
-        labels: TNS,
-        scale: TNS,
-        logits: Optional[TNS]= None,
-        probs: Optional[TNS]=  None,
+def reinforced_cross_entropy(
+        labels: TNS,        # tensor of ints with true label (index)
+        scale: TNS,         # tensor of labels shape with loss scale value (per sample / label)
+        logits: Optional[TNS]=              None,
+        probs: Optional[TNS]=               None,
 ) -> DTNS:
+    """ loss function based on cross entropy loss adjusted for reinforcement learning (RL) problems,
+    where usually true label is unknown and scale is the main loss factor
+
+    classic cross entropy loss has issue in RL optimization tasks for low (negative) scale values
+    - high probability of label gets relatively low loss value then
+    - low probability of label gets relatively high loss value then
+
+    this implementation evens loss values for positive and negative scale
+    """
 
     if logits is None and probs is None:
         raise TorchnessException('logits OR probs must be given!')
@@ -129,7 +138,7 @@ def scaled_cross_entropy(
     # merge loss for positive and negative scale
     prob_label = select_with_indices(probs, labels)
     ce = torch.where(
-        condition=  scale > 0,
+        condition=  torch.gt(scale, 0), # greater than 0
         input=      -torch.log(prob_label),
         other=      -torch.log(1-prob_label))
 

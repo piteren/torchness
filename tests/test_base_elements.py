@@ -1,7 +1,7 @@
 import torch
 import unittest
 
-from torchness.base_elements import my_initializer, mrg_ckpts, ckpt_nfo, select_with_indices, scaled_cross_entropy
+from torchness.base_elements import my_initializer, mrg_ckpts, ckpt_nfo, select_with_indices, reinforced_cross_entropy
 from torchness.motorch import Module, MOTorch
 from torchness.layers import LayDense
 
@@ -70,7 +70,7 @@ class TestBaseElements(unittest.TestCase):
 
         self.assertTrue(torch.equal(swi,_swi))
 
-    def test_scaled_cross_entropy(self):
+    def test_reinforced_cross_entropy(self):
 
         logits = torch.rand(5,5)
         logits -= 0.5
@@ -88,7 +88,7 @@ class TestBaseElements(unittest.TestCase):
 
         scale = (torch.rand(5) > 0.5).to(float)*2-1
         print(f'scale: {scale}')
-        sce = scaled_cross_entropy(
+        sce = reinforced_cross_entropy(
             labels=     target,
             scale=      scale,
             logits=     logits)
