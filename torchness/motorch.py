@@ -567,6 +567,7 @@ class MOTorch(ParaSave):
             self._module.load_state_dict(save_obj.pop('model_state_dict'))
             self._log.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
+            # this exception logs as INFO since it is quite normal to not load checkpoint while init
             self._log.info(f'> {self.name} checkpoint NOT loaded because of exception: {e}')
 
         return save_obj
@@ -693,7 +694,6 @@ class MOTorch(ParaSave):
             noise: float=                       0.03,
             logger=                             None,
             loglevel=                           30,
-            **kwargs,
     ) -> None:
         """ performs GX on saved MOTorch """
 
@@ -721,16 +721,16 @@ class MOTorch(ParaSave):
                 save_topdir_child=  save_topdir_child,
                 ratio=              ratio,
                 noise=              noise)
-        # build MOTorch and save to have checkpoint saved
+        # build and save to have checkpoint saved
         else:
-            cls(name=               name_child,
+            child = cls(
+                name=               name_child,
                 save_topdir=        save_topdir_child or save_topdir_parentA,
                 save_fn_pfx=        save_fn_pfx,
                 device=             device,
                 logger=             logger,
-                loglevel=           loglevel,
-                **kwargs,
-            ).save()
+                loglevel=           loglevel)
+            child.save()
 
     # ***************************************************************************************************** train / test
 
