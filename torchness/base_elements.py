@@ -143,5 +143,5 @@ def reinforced_cross_entropy(
         other=      -torch.log(1-prob_label))
 
     return {
-        'scaled_cross_entropy': ce * torch.abs(scale),
-        'cross_entropy':        ce}
+        'reinforced_cross_entropy': ce * torch.abs(scale),
+        'cross_entropy':            ce}
