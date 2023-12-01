@@ -326,7 +326,7 @@ class MOTorch(ParaSave):
         # parameters names safety check
         found = self.check_params_sim(params=list(self.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys()))
         if found:
-            self._log.warning('MOTorch was asked to check for params similarity and found:')
+            self._log.warning(f'{self.name} (MOTorch) was asked to check for params similarity and found:')
             for pa, pb in found:
                 self._log.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
 
