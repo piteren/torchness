@@ -57,6 +57,21 @@ class TBwr:
             global_step=    step,
             bins=           bins)
 
+    def add_text(
+            self,
+            tag: str,
+            text_string: str,
+            step: Optional[int]=    None,
+    ):
+        if not self.sw:
+            self.sw = self._get_sw()
+        if step is None:
+            step = self._get_step(tag)
+        self.sw.add_text(
+            tag=    tag,
+            text_string=    text_string,
+            global_step=    step)
+
     def flush(self):
         if self.sw:
             self.sw.flush()
