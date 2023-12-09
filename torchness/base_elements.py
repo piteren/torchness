@@ -104,6 +104,15 @@ def ckpt_nfo(
         print(f'Checkpoints {"are equal" if are_equal else "are NOT equal"}')
 
 
+def min_max_probs(probs: TNS) -> DTNS:
+    with torch.no_grad():
+        max_probs = torch.max(probs, dim=-1)[0] # max probs
+        min_probs = torch.min(probs, dim=-1)[0] # min probs
+        max_probs_mean = torch.mean(max_probs)  # mean of max probs
+        min_probs_mean = torch.mean(min_probs)  # mean of min probs
+    return {'max_probs_mean':max_probs_mean, 'min_probs_mean':min_probs_mean}
+
+
 def select_with_indices(source:TNS, indices:TNS) -> TNS:
     """ selects from the (multidimensional dim) source
     values from the last axis
