@@ -59,8 +59,8 @@ class TBwr:
 
     def add_text(
             self,
+            text: str,
             tag: str,
-            text_string: str,
             step: Optional[int]=    None,
     ):
         if not self.sw:
@@ -69,7 +69,7 @@ class TBwr:
             step = self._get_step(tag)
         self.sw.add_text(
             tag=    tag,
-            text_string=    text_string,
+            text_string=    text,
             global_step=    step)
 
     def flush(self):
