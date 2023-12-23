@@ -7,7 +7,7 @@ import time
 import torch
 from typing import Optional, Union, List
 
-from base_elements import TorchnessException
+from torchness.base_elements import TorchnessException
 
 
 """
