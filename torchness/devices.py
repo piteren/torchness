@@ -1,13 +1,13 @@
 import GPUtil
 import os
+from pypaq.lipytools.pylogger import get_pylogger
+from pypaq.lipytools.printout import printover
+from pypaq.mpython.mptools import sys_res_nfo
 import time
 import torch
 from typing import Optional, Union, List
 
-from pypaq.exception import PyPaqException
-from pypaq.lipytools.pylogger import get_pylogger
-from pypaq.lipytools.printout import printover
-from pypaq.mpython.mptools import sys_res_nfo
+from base_elements import TorchnessException
 
 
 """
@@ -15,7 +15,7 @@ devices: DevicesTorchness - parameter type
     - represents some devices (GPU / CPU)
     - compatible with torch.device (class) type
  
-    ### ****************************************************************************************** pypaq representations
+    ### ************************************************************************************** torchness representations
     
     # cuda
     int                                 (int)                    single (system) CUDA ID
@@ -64,15 +64,15 @@ def report_cuda() -> str:
     return rp
 
 
-def _get_devices_pypaq(
+def _get_devices_torchness(
         devices: DevicesTorchness=  -1,
         logger=                 None,
         loglevel=               20,
 ) -> List[Union[int,None]]:
-    """ returns pypaq representation of given devices """
+    """ returns torchness representation of given devices """
 
     if not logger:
-        logger = get_pylogger(name='_get_devices_pypaq', level=loglevel)
+        logger = get_pylogger(name='_get_devices_torchness', level=loglevel)
 
     if type(devices) is not list: devices = [devices]  # first convert to list
 
@@ -138,7 +138,7 @@ def _get_devices_pypaq(
         if not known_device:
             msg = f'unknown (not valid?) device given: {d}'
             logger.error(msg)
-            raise PyPaqException(msg)
+            raise TorchnessException(msg)
 
     return devices_base
 
@@ -150,12 +150,12 @@ def get_devices(
         loglevel=               20,
 ) -> List[Union[int,None,str]]:
     """ resolves representation given with DevicesTorchness
-    into dev_pypaq base form or List[str] (PyTorch namespace) """
+    into dev_torchness base form or List[str] (PyTorch namespace) """
 
     if not logger:
         logger = get_pylogger(name='get_devices', level=loglevel)
 
-    devices_base = _get_devices_pypaq(devices=devices, logger=logger)
+    devices_base = _get_devices_torchness(devices=devices, logger=logger)
 
     if not torch_namespace:
         return devices_base
