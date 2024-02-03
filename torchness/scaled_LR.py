@@ -29,7 +29,7 @@ class ScaledLR(torch.optim.lr_scheduler._LRScheduler):
         self.ann_step = ann_step
         self.n_wup_off = n_wup_off
 
-        super(ScaledLR, self).__init__(optimizer, last_epoch, verbose=self._log.getEffectiveLevel()<20)
+        super(ScaledLR, self).__init__(optimizer, last_epoch)
 
     # updates LR of 0 group
     def update_base_lr0(self, lr: float):
