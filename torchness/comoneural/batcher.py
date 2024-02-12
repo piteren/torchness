@@ -2,6 +2,8 @@ import numpy as np
 from pypaq.lipytools.pylogger import get_pylogger
 from typing import Dict, Optional, Tuple, List
 
+from torchness.types import NPL
+
 BATCHING_TYPES = [
     'base',         # prepares batches in order of given data
     'random',       # basic random sampling
@@ -24,16 +26,16 @@ class Batcher:
 
     def __init__(
             self,
-            data_TR: Dict[str, np.ndarray],                      # INFO: it will also accept Dict[str, torch.Tensor]
-            data_VL: Optional[Dict[str, np.ndarray]]=   None,
-            data_TS: Optional[Dict[str, np.ndarray]]=   None,
-            split_VL: float=                            0.0,    # if > 0.0 and not data_VL then factor of data_TR will be put to data_VL
-            split_TS: float=                            0.0,    # if > 0.0 and not data_TS then factor of data_TR will be put to data_TS
-            batch_size: int=                            16,
-            bs_mul: int=                                2,      # VL & TS batch_size multiplier
-            batching_type: str=                         'random_cov',
-            seed=                                       123,
-            logger=                                     None):
+            data_TR: Dict[str,NPL],
+            data_VL: Optional[Dict[str,NPL]]=   None,
+            data_TS: Optional[Dict[str,NPL]]=   None,
+            split_VL: float=                    0.0,    # if > 0.0 and not data_VL then factor of data_TR will be put to data_VL
+            split_TS: float=                    0.0,    # if > 0.0 and not data_TS then factor of data_TR will be put to data_TS
+            batch_size: int=                    16,
+            bs_mul: int=                        2,      # VL & TS batch_size multiplier
+            batching_type: str=                 'random_cov',
+            seed=                               123,
+            logger=                             None):
 
         self.__log = logger or get_pylogger(name='Batcher')
 
@@ -80,7 +82,7 @@ class Batcher:
 
     @staticmethod
     def data_split(
-            data: Dict[str,np.ndarray],
+            data: Dict[str,NPL],
             split_VL: float,
             split_TS: float,
             seed: int):

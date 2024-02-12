@@ -26,8 +26,7 @@ class MOTorchException(Exception):
 class Module(torch.nn.Module):
     """ Module type supported by MOTorch
     defines computation graph of forward (FWD) and loss
-    accuracy() and f1() are metrics used by MOTorch while training
-    """
+    accuracy() and f1() are metrics used by MOTorch while training """
 
     def __init__(self, logger=None, loglevel=20):
         torch.nn.Module.__init__(self)
@@ -42,14 +41,13 @@ class Module(torch.nn.Module):
         with logits tensor for proper MOTorch.run_train()
 
         exemplary implementation:
-            return {'logits': self.logits(input)}
-        """
+            return {'logits': self.logits(input)} """
         raise NotImplementedError
 
     # noinspection PyMethodMayBeStatic
     def accuracy(self, logits:TNS, labels:TNS) -> NUM:
         """ baseline accuracy implementation for logits & lables """
-        return (torch.argmax(logits, dim=-1) == labels).to(float).mean()
+        return (torch.argmax(logits, dim=-1) == labels).to(torch.float).mean()
 
     # noinspection PyMethodMayBeStatic
     def f1(self, logits:TNS, labels:TNS, average='weighted') -> float:
@@ -138,7 +136,7 @@ class MOTorch(ParaSave):
         'seed':             123,                # seed for torch and numpy
         'device':           -1,                 # :DevicesTorchness (check torchness.devices)
         'dtype':            torch.float32,      # dtype of floats in MOTorch (16/32/64 etc)
-        'bypass_data_conv': False,              # to bypass input data conversion with when calling: forward, loss, backward
+        'bypass_data_conv': False,              # to bypass input data conversion with when calling: __call__, loss, backward
             # training
         'batch_size':       64,                 # training batch size
         'n_batches':        1000,               # default length of training
@@ -421,11 +419,12 @@ class MOTorch(ParaSave):
 
     def __call__(
             self,
+            *args,
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for dropout etc
             no_grad=                        True,   # by default gradients calculation is disabled for FWD call
             empty_cuda_cache=               True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
-            **kwargs
+            **kwargs,
     ) -> DTNS:
         """ forward (FWD) call
         runs forward on nn.Module, manages:
@@ -438,13 +437,14 @@ class MOTorch(ParaSave):
             self.train(set_training)
 
         if not (bypass_data_conv or self.bypass_data_conv):
+            args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
         if no_grad:
             with torch.no_grad():
-                out = self._module(**kwargs)
+                out = self._module(*args, **kwargs)
         else:
-            out = self._module(**kwargs)
+            out = self._module(*args, **kwargs)
 
         # eventually roll back to MOTorch default
         if set_training:
@@ -474,24 +474,27 @@ class MOTorch(ParaSave):
 
     def loss(
             self,
+            *args,
             bypass_data_conv=               False,
             set_training: Optional[bool]=   None,   # for not None forces given training mode for torch.nn.Module
             no_grad=                        False,  # by default gradients calculation is enabled for loss call
             empty_cuda_cache=               True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
-            **kwargs) -> DTNS:
+            **kwargs,
+    ) -> DTNS:
         """ forward + loss call on NN """
 
         if set_training is not None:
             self.train(set_training)
 
         if not (bypass_data_conv or self.bypass_data_conv):
+            args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
         if no_grad:
             with torch.no_grad():
-                out = self._module.loss(**kwargs)
+                out = self._module.loss(*args, **kwargs)
         else:
-            out = self._module.loss(**kwargs)
+            out = self._module.loss(*args, **kwargs)
 
         # eventually roll back to MOTorch default
         if set_training:
@@ -505,6 +508,7 @@ class MOTorch(ParaSave):
 
     def backward(
             self,
+            *args,
             bypass_data_conv=   False,
             set_training: bool= True,   # for backward training mode is set to True by default
             empty_cuda_cache=   True,   # releases all unoccupied cached memory after model call currently held by the caching allocator
@@ -513,6 +517,7 @@ class MOTorch(ParaSave):
         """ backward call on NN, runs loss calculation + update of Module """
 
         out = self.loss(
+            *args,
             bypass_data_conv=   bypass_data_conv,
             set_training=       set_training,
             no_grad=            False, # True makes no sense with backward()
