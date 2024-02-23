@@ -19,9 +19,18 @@ class ZeroesProcessor:
         self.tbwr = tbwr
         self.step = 0
 
+    @staticmethod
+    def _extract_TNS_from(l:List) -> List[TNS]:
+        """ extract TNS from a nested list """
+        tL = []
+        for e in l:
+            if type(e) is list: tL += ZeroesProcessor._extract_TNS_from(e)
+            else:               tL.append(e)
+        return tL
+
     def process(
             self,
-            zeroes: Union[TNS,List[TNS]],
+            zeroes: Union[TNS,List],
             step: Optional[int]=    None
     ) -> Dict[int,NUM]:
         """ processes next zeroes
@@ -33,6 +42,7 @@ class ZeroesProcessor:
             step = self.step
 
         if type(zeroes) is list:
+            zeroes = ZeroesProcessor._extract_TNS_from(zeroes)
             if not zeroes:
                 return iv_nane
             zeroes = torch.cat(zeroes)
