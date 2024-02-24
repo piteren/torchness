@@ -5,7 +5,9 @@ from torchness.types import TNS, NUM
 
 
 class ZeroesProcessor:
-    """ processes zeroes arrays accumulated in intervals """
+    """ ZeroesProcessor
+    processes (analyzes) zeroes arrays
+    usually accumulated by NN in intervals of FWD/BWD """
 
     def __init__(
             self,
@@ -21,7 +23,7 @@ class ZeroesProcessor:
 
     @staticmethod
     def _extract_TNS_from(l:List) -> List[TNS]:
-        """ extract TNS from a nested list """
+        """ extract TNS from a (nested) list of TNS """
         tL = []
         for e in l:
             if type(e) is list: tL += ZeroesProcessor._extract_TNS_from(e)
@@ -31,10 +33,11 @@ class ZeroesProcessor:
     def process(
             self,
             zeroes: Union[TNS,List],
-            step: Optional[int]=    None
+            step: Optional[int]=None
     ) -> Dict[int,NUM]:
         """ processes next zeroes
-        returned dict may be empty if no interval passed """
+        returned dict may be empty if no interval passed
+        zeroes may be given as Tensor or (nested) list of Tensor """
 
         iv_nane = {}
 
