@@ -21,8 +21,7 @@ class LayDense(torch.nn.Linear):
             dtype=              None,
             initializer: INI=   None):
         self.initializer = initializer or my_initializer
-        torch.nn.Linear.__init__(
-            self,
+        super().__init__(
             in_features=    in_features,
             out_features=   out_features,
             bias=           bias,
