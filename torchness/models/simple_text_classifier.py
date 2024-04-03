@@ -25,7 +25,7 @@ class STextCSF(Module):
             dtype=                                  None,
             **kwargs):
 
-        Module.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         self.te_module = TextEMB(
             st_name=        st_name,

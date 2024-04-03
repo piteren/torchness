@@ -5,6 +5,7 @@ from torchness.motorch import Module
 from torchness.types import TNS, DTNS, INI
 from torchness.base_elements import my_initializer
 from torchness.layers import LayDense
+from torchness.encoders import EncDRT
 
 
 class SFeatsCSF(Module):
@@ -12,37 +13,47 @@ class SFeatsCSF(Module):
 
     def __init__(
             self,
-            feats_width: int,
-            in_drop: float=                         0.0,
-            mid_width: Optional[int]=               30,
-            mid_drop: float=                        0.0,
-            num_classes: int=                       2,
+            feats_width: int,                               # input
+            in_lay_norm: bool=                      True,
+            in_dropout: float=                      0.0,
+            n_hidden: int=                          2,
+            hidden_width: int=                      12,
+            hidden_drop: float=                     0.0,
+            num_classes: int=                       2,      # output
+            lay_norm=                               True,
+            do_zeroes: bool=                        True,
             class_weights: Optional[Tuple[float]]=  None,
-            initializer: INI=                       None,
+            device=                                 None,
             dtype=                                  None,
+            initializer: INI=                       None,
             **kwargs):
 
-        Module.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         self.logger.info(f'*** SFeatsCSF (Module) *** inits for feats of width {feats_width}')
 
         if initializer is None:
             initializer = my_initializer
 
-        self.drop = torch.nn.Dropout(p=in_drop) if in_drop else None
-
-        self.mid = LayDense(
-            in_features=    feats_width,
-            out_features=   mid_width,
-            activation=     torch.nn.ReLU,
-            bias=           True,
-            initializer=    initializer,
-            dtype=          dtype) if mid_width else None
-
-        self.mid_drop = torch.nn.Dropout(p=mid_drop) if self.mid and mid_drop else None
+        self.enc_drt = EncDRT(
+            in_width=           feats_width,
+            in_lay_norm=        in_lay_norm,
+            in_dropout=         in_dropout,
+            n_layers=           n_hidden,
+            lay_width=          hidden_width,
+            do_scaled_dns=      False,
+            activation=         torch.nn.ReLU,
+            interlay_dropout=   0.0,
+            lay_dropout=        hidden_drop,
+            res_dropout=        0.0,
+            lay_norm=           lay_norm,
+            do_zeroes=          do_zeroes,
+            device=             device,
+            dtype=              dtype,
+            initializer=        initializer)
 
         self.logits = LayDense(
-            in_features=    mid_width if self.mid else feats_width,
+            in_features=    hidden_width,
             out_features=   num_classes,
             activation=     None,
             bias=           False,
@@ -54,23 +65,15 @@ class SFeatsCSF(Module):
         self.class_weights = class_weights
 
     def forward(self, feats:TNS) -> DTNS:
-
-        out = feats
-
-        if self.drop:
-            out = self.drop(out)
-
-        if self.mid:
-            out = self.mid(out)
-            if self.mid_drop:
-                out = self.mid_drop(out)
-
-        logits = self.logits(out)
-
+        enc_out = self.enc_drt(feats)
+        logits = self.logits(enc_out['out'])
+        dist = torch.distributions.Categorical(logits=logits)
         return {
             'logits':   logits,
-            'probs':    torch.nn.functional.softmax(logits, dim=-1),
-            'preds':    torch.argmax(logits, dim=-1)}
+            'entropy':  dist.entropy(),
+            'probs':    dist.probs,
+            'preds':    torch.argmax(logits, dim=-1),
+            'zeroes':   enc_out['zeroes']}
 
     def loss(self, feats:TNS, labels:TNS) -> DTNS:
 

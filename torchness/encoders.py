@@ -8,13 +8,14 @@ from torchness.layers import LayDense, TF_Dropout, LayConv1D, LayRES, zeroes
 
 class LayBlockDRT(torch.nn.Module):
     """ Block (Layer) of EncDRT
-    LN > Dense or two_with_drop_in_between > drop > RES with drop """
+    LN > Dense or two with drop in between > drop > RES with drop """
 
     def __init__(
             self,
             in_width: int,
+            in_lay_norm=                True,           # input layer norm
             do_scaled_dns: bool=        False,          # two denses (True) or single dense (False)
-            dns_scale: int=             4,              # up-scale for first dense of two
+            dns_scale: int=             4,              # first dense up-scale
             activation: ACT=            torch.nn.ReLU,
             interlay_dropout: float=    0.0,            # dropout in between two denses
             lay_dropout: float=         0.0,            # dropout after dense/s
@@ -29,14 +30,16 @@ class LayBlockDRT(torch.nn.Module):
 
         self.do_zeroes = do_zeroes
 
-        if initializer is None: initializer = my_initializer
+        if initializer is None:
+            initializer = my_initializer
 
         self.ln_in = torch.nn.LayerNorm(
             normalized_shape=   in_width,
             device=             device,
-            dtype=              dtype)
+            dtype=              dtype) if in_lay_norm else None
 
         self.denses = []
+        self.drop_interlay = None
         if do_scaled_dns:
             # dense (scale up) with activation
             self.denses.append(LayDense(
@@ -47,6 +50,11 @@ class LayBlockDRT(torch.nn.Module):
                 device=         device,
                 dtype=          dtype,
                 initializer=    initializer))
+            self.add_module(f'dense0', self.denses[-1])
+
+            if interlay_dropout:
+                self.drop_interlay = torch.nn.Dropout(p=interlay_dropout)
+
             # dense (scale down) without activation
             self.denses.append(LayDense(
                 in_features=    in_width * dns_scale,
@@ -56,6 +64,7 @@ class LayBlockDRT(torch.nn.Module):
                 device=         device,
                 dtype=          dtype,
                 initializer=    initializer))
+            self.add_module(f'dense1', self.denses[-1])
         else:
             # just single dense, with activation
             self.denses.append(LayDense(
@@ -66,9 +75,7 @@ class LayBlockDRT(torch.nn.Module):
                 device=         device,
                 dtype=          dtype,
                 initializer=    initializer))
-        for dix, l in enumerate(self.denses): self.add_module(f'dense{dix}', l)
-
-        self.drop_interlay = torch.nn.Dropout(p=interlay_dropout) if interlay_dropout and do_scaled_dns else None
+            self.add_module(f'dense0', self.denses[-1])
 
         self.drop_lay = torch.nn.Dropout(p=lay_dropout) if lay_dropout else None
 
@@ -78,7 +85,9 @@ class LayBlockDRT(torch.nn.Module):
 
         zs = None
 
-        out = self.ln_in(inp)
+        out = inp
+        if self.ln_in:
+            out = self.ln_in(out)
 
         out = self.denses[0](out)
         if self.do_zeroes:
@@ -108,23 +117,35 @@ class EncDRT(torch.nn.Module):
     def __init__(
             self,
             in_width: int,
+            in_lay_norm: bool=          True,           # input LN
             in_dropout: float=          0.0,            # dropout on input
-            n_layers: int=              6,
+            n_layers: int=              6,              # number of blocks
             shared_lays: bool=          False,          # shared variables in enc_layers
             lay_width: Optional[int]=   None,           # for None matches input width
             do_scaled_dns: bool=        True,
-            dns_scale: int=             4,              # scale(*) of first dense
-            activation: ACT=            torch.nn.ReLU,  # gelu is really worth a try
-            lay_dropout: float=         0.0,            # dropout after two denses
-            residual: bool=             True,           # residual yes/no
-            res_dropout: float=         0.0,            # dropout on residual connection
+            dns_scale: int=             4,
+            activation: ACT=            torch.nn.ReLU,
+            interlay_dropout=           0.0,
+            lay_dropout: float=         0.0,
+            residual: bool=             True,
+            res_dropout: float=         0.0,
+            lay_norm=                   True,           # LN in each LayBlockDRT (input)
+            do_zeroes: bool=            True,
             device=                     None,
             dtype=                      None,
             initializer: INI=           None):
 
-        super(EncDRT, self).__init__()
+        super().__init__()
 
-        if initializer is None: initializer = my_initializer
+        self.do_zeroes = do_zeroes
+
+        if initializer is None:
+            initializer = my_initializer
+
+        self.ln_in = torch.nn.LayerNorm(
+            normalized_shape=   in_width,
+            device=             device,
+            dtype=              dtype) if in_lay_norm else None
 
         self.in_drop_lay = torch.nn.Dropout(p=in_dropout) if in_dropout else None
 
@@ -139,26 +160,26 @@ class EncDRT(torch.nn.Module):
             dtype=          dtype,
             initializer=    initializer) if self.lay_width != self.in_width else None
 
-        self.ln_in = torch.nn.LayerNorm(
-            normalized_shape=   self.lay_width,
-            device=             device,
-            dtype=              dtype)
-
         num_layers_to_build = 1 if shared_lays else n_layers
         self.drt_lays = [LayBlockDRT(
-            in_width=       self.lay_width,
-            do_scaled_dns=  do_scaled_dns,
-            dns_scale=      dns_scale,
-            activation=     activation,
-            lay_dropout=    lay_dropout,
-            residual=       residual,
-            res_dropout=    res_dropout,
-            device=         device,
-            dtype=          dtype,
-            initializer=    initializer
+            in_width=           self.lay_width,
+            in_lay_norm=        lay_norm,
+            do_scaled_dns=      do_scaled_dns,
+            dns_scale=          dns_scale,
+            activation=         activation,
+            interlay_dropout=   interlay_dropout,
+            lay_dropout=        lay_dropout,
+            residual=           residual,
+            res_dropout=        res_dropout,
+            do_zeroes=          self.do_zeroes,
+            device=             device,
+            dtype=              dtype,
+            initializer=        initializer
         ) for _ in range(num_layers_to_build)]
-        for lix,lay in enumerate(self.drt_lays): self.add_module(f'lay_drt_{lix}',lay)
-        if shared_lays and n_layers > 1: self.drt_lays *= n_layers
+        for lix,lay in enumerate(self.drt_lays):
+            self.add_module(f'lay_drt_{lix}',lay)
+        if shared_lays and n_layers > 1:
+            self.drt_lays *= n_layers
 
     def forward(self, inp:TNS) -> DTNS:
 
@@ -166,22 +187,24 @@ class EncDRT(torch.nn.Module):
 
         out = inp
 
+        if self.ln_in:
+            out = self.ln_in(out)
+
         if self.in_drop_lay: # input dropout
             out = self.in_drop_lay(out)
 
         if self.projection_lay: # input projection, no activation <- do not catch zeroes
             out = self.projection_lay(out)
 
-        out = self.ln_in(out)
-
         for drt_lay in self.drt_lays:
             lay_out = drt_lay(out)
             out = lay_out['out']
-            zsL.append(lay_out['zeroes'])
+            if self.do_zeroes:
+                zsL.append(lay_out['zeroes'])
 
         return {
             'out':      out,
-            'zeroes':   torch.cat(zsL).detach()}
+            'zeroes':   torch.cat(zsL).detach() if self.do_zeroes else None}
 
 
 class LayBlockCNN(torch.nn.Module):
@@ -291,7 +314,7 @@ class LayBlockCNN(torch.nn.Module):
 
         inp_shape = inp.shape
 
-        zsL = [] if self.do_zeroes else None
+        zsL = []
         out = self.lay_ln(inp)
 
         state = None
@@ -351,13 +374,10 @@ class LayBlockCNN(torch.nn.Module):
         if state is not None and self.detach_history:
             state = state.detach()
 
-        if zsL:
-            zsL = torch.cat(zsL).detach()
-
         return {
             'out':      out,
             'state':    state,
-            'zeroes':   zsL}
+            'zeroes':   torch.cat(zsL).detach() if self.do_zeroes else None}
 
 
 class EncCNN(torch.nn.Module):

@@ -7,6 +7,19 @@ from torchness.encoders import LayBlockDRT, EncDRT, LayBlockCNN, EncCNN, LayBloc
 
 class TestEncoders(unittest.TestCase):
 
+    def test_LayBlockDRT_init(self):
+        lay_drt = LayBlockDRT(10, in_lay_norm=False)
+        print(lay_drt)
+
+    def test_LayBlockDRT_init_more(self):
+        lay_drt = LayBlockDRT(
+            in_width=           10,
+            do_scaled_dns=      True,
+            interlay_dropout=   0.1,
+            lay_dropout=        0.1,
+            res_dropout=        0.1)
+        print(lay_drt)
+
     def test_LayBlockDRT_base(self):
 
         in_width = 10
@@ -26,11 +39,12 @@ class TestEncoders(unittest.TestCase):
         inp = torch.rand(in_width) - 0.5
 
         lay_drt = LayBlockDRT(
-            in_width=       in_width,
-            do_scaled_dns=  True,
-            dns_scale=      4,
-            lay_dropout=    0.1,
-            res_dropout=    0.1)
+            in_width=           in_width,
+            do_scaled_dns=      True,
+            dns_scale=          4,
+            interlay_dropout=   0.1,
+            lay_dropout=        0.1,
+            res_dropout=        0.1)
         print(lay_drt)
         out = lay_drt(inp)
         print(out)
@@ -70,6 +84,22 @@ class TestEncoders(unittest.TestCase):
         out = lay_drt(inp)
         print(out['out'].dtype)
         print(out)
+
+    def test_EncDRT_init(self):
+        enc_drt = EncDRT(
+            in_width=           10,
+            in_dropout=         0.1,
+            n_layers=           2,
+            lay_width=          12,
+            dns_scale=          4,
+            interlay_dropout=   0.1,
+            lay_dropout=        0.1,
+            res_dropout=        0.1)
+        print(enc_drt)
+
+    def test_EncDRT_init_shared(self):
+        enc_drt = EncDRT(10, n_layers=6, shared_lays=True, dns_scale=4)
+        print(enc_drt)
 
     def test_EncDRT(self):
 
