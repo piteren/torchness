@@ -17,16 +17,14 @@ class LayDense(torch.nn.Linear):
             out_features: int,
             activation: ACT=    torch.nn.ReLU,
             bias: bool=         True,
-            device=             None,
-            dtype=              None,
-            initializer: INI=   None):
+            initializer: INI=   None,
+            **kwargs):
         self.initializer = initializer or my_initializer
         super().__init__(
             in_features=    in_features,
             out_features=   out_features,
             bias=           bias,
-            device=         device,
-            dtype=          dtype)
+            **kwargs)
         self.activation = activation() if activation else None
 
     def reset_parameters(self) -> None:
@@ -108,10 +106,9 @@ class LayConv1D(torch.nn.Conv1d):
             groups=             1,
             bias=               True,
             padding_mode=       'zeros',
-            device=             None,
-            dtype=              None,
             activation: ACT=    torch.nn.ReLU,
-            initializer: INI=   None):
+            initializer: INI=   None,
+            **kwargs):
 
         super(LayConv1D, self).__init__(
             in_channels=    in_features,
@@ -123,8 +120,7 @@ class LayConv1D(torch.nn.Conv1d):
             groups=         groups,
             bias=           bias,
             padding_mode=   padding_mode,
-            device=         device,
-            dtype=          dtype)
+            **kwargs)
 
         self.activation = activation() if activation else None
 

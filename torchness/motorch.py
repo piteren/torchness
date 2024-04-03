@@ -29,7 +29,7 @@ class Module(torch.nn.Module):
     accuracy() and f1() are metrics used by MOTorch while training """
 
     def __init__(self, logger=None, loglevel=20):
-        torch.nn.Module.__init__(self)
+        super().__init__()
         if not logger:
             logger = get_pylogger(name=f'{self.__class__.__name__}_logger', level=loglevel)
         self.logger = logger
@@ -135,7 +135,7 @@ class MOTorch(ParaSave):
     MOTORCH_DEFAULTS = {
         'seed':             123,                # seed for torch and numpy
         'device':           -1,                 # :DevicesTorchness (check torchness.devices)
-        'dtype':            torch.float32,      # dtype of floats in MOTorch (16/32/64 etc)
+        'dtype':            torch.float32,
         'bypass_data_conv': False,              # to bypass input data conversion with when calling: __call__, loss, backward
             # training
         'batch_size':       64,                 # training batch size
@@ -218,8 +218,7 @@ class MOTorch(ParaSave):
         self._log.info(f'> {name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
 
         # init as a ParaSave
-        ParaSave.__init__(
-            self,
+        super().__init__(
             name=           name,
             save_topdir=    save_topdir,
             save_fn_pfx=    save_fn_pfx,
@@ -248,6 +247,7 @@ class MOTorch(ParaSave):
 
         _module_init_def = get_class_init_params(module_type)['with_defaults'] # defaults of self.module_type.__init__
 
+        """
         # special case of params: [device, dtype] <- those will be set with values prepared by MOTorch below, BUT...
         _override_in_module_for_none = {
             'device':   self.MOTORCH_DEFAULTS['device'],
@@ -260,6 +260,7 @@ class MOTorch(ParaSave):
                 remove_from_override.append(param)
         for param in remove_from_override:
             _override_in_module_for_none.pop(param)
+        """
 
         ### update in proper order
 
@@ -267,7 +268,7 @@ class MOTorch(ParaSave):
         self._point.update(ParaSave.PARASAVE_DEFAULTS)
         self._point.update(self.MOTORCH_DEFAULTS)
         self._point.update(_module_init_def)
-        self._point.update(_override_in_module_for_none)
+        #self._point.update(_override_in_module_for_none)
         self._point.update(point_saved)
         self._point.update(kwargs)
         self._point["module_type"] = module_type

@@ -22,7 +22,6 @@ class STextCSF(Module):
             num_classes: int=                       2,
             class_weights: Optional[List[float]]=   None,
             initializer: INI=                       None,
-            dtype=                                  None,
             **kwargs):
 
         super().__init__(**kwargs)
@@ -39,7 +38,6 @@ class STextCSF(Module):
             num_classes=    num_classes,
             class_weights=  class_weights,
             initializer=    initializer,
-            dtype=          dtype,
             logger=         self.logger)
 
     def encode(
@@ -73,8 +71,7 @@ class STextCSF_MOTorch(MOTorch):
             fwd_batch_size=                         256,    # number of embeddings in batch for probs
             **kwargs):
 
-        MOTorch.__init__(
-            self,
+        super().__init__(
             module_type=    module_type,
             enc_batch_size= enc_batch_size,
             fwd_batch_size= fwd_batch_size,

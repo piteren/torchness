@@ -22,7 +22,6 @@ class LinModel(Module):
             out_shape=  10,
             loss_func=  torch.nn.functional.cross_entropy,
             device=     None,
-            dtype=      None,
             seed=       121,
             **kwargs,
     ):
@@ -70,7 +69,6 @@ class TestMOTorch(unittest.TestCase):
             logger=         get_child(logger, change_level=-10),
         )
         print(model)
-
         self.assertTrue(model.size == 7850)
         self.assertFalse(model.module.training)
         self.assertTrue(type(model.module) is LinModel)

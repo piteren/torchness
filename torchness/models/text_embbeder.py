@@ -15,7 +15,7 @@ class TextEMB(Module):
             st_name: str=   'all-MiniLM-L6-v2',
             enc_batch_size= 256,
             **kwargs):
-        Module.__init__(self, **kwargs)
+        super().__init__(**kwargs)
         self.st_name = st_name
         self.st_model = SentenceTransformer(model_name_or_path=st_name)
         self.enc_batch_size = enc_batch_size
@@ -53,7 +53,7 @@ class TextEMB(Module):
 class TextEMB_MOTorch(MOTorch):
 
     def __init__(self, module_type:type(TextEMB)=TextEMB, **kwargs):
-        MOTorch.__init__(self, module_type=module_type, **kwargs)
+        super().__init__(module_type=module_type, **kwargs)
 
     def get_tokens(self, lines:Union[str, List[str]]) -> Union[List[str], List[List[str]]]:
         self.logger.info(f'{self.name} prepares tokens for {len(lines)} lines..')

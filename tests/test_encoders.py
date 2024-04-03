@@ -77,10 +77,8 @@ class TestEncoders(unittest.TestCase):
             in_width=       in_width,
             do_scaled_dns=  True,
             lay_dropout=    0.1,
-            res_dropout=    0.1,
-            dtype=          torch.double)
+            res_dropout=    0.1)
         print(lay_drt)
-        inp = inp.to(torch.double)
         out = lay_drt(inp)
         print(out['out'].dtype)
         print(out)
@@ -129,17 +127,12 @@ class TestEncoders(unittest.TestCase):
             do_scaled_dns=  True,
             dns_scale=      3,
             lay_dropout=    0.3,
-            res_dropout=    0.3,
-            dtype=          torch.double)
+            res_dropout=    0.3)
         print(enc_drt)
         self.assertTrue(len(list(enc_drt.children())) == 7) # in_drop, projection, ln_in, 4 * LayDRT
-        inp = inp.to(torch.double)
         out = enc_drt(inp)
         print(out)
         self.assertTrue(out['zeroes'].shape[0] == 4*16*3)
-
-        enc_drt.to(torch.float)
-        self.assertRaises(RuntimeError, enc_drt, inp) # expected scalar type Double but found Float
 
     def test_LayBlockCNN_base_init_call(self):
 
@@ -417,7 +410,6 @@ class TestEncoders(unittest.TestCase):
         in_features = 32
         inp = torch.rand(18,96,in_features)
         print(inp.shape)
-        inp = inp.to(torch.double)
 
         enc = EncCNN(
             in_features=        in_features,
@@ -430,8 +422,7 @@ class TestEncoders(unittest.TestCase):
             res_dropout=        0.25,
             do_ldrt=            True,
             ldrt_drop=          0.05,
-            ldrt_res_dropout=   0.07,
-            dtype=              torch.double)
+            ldrt_res_dropout=   0.07)
         print(enc)
         enc_out = enc(inp)
 

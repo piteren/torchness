@@ -22,8 +22,6 @@ class LayBlockDRT(torch.nn.Module):
             residual: bool=             True,           # residual yes/no
             res_dropout: float=         0.0,            # dropout on residual connection
             do_zeroes: bool=            True,
-            device=                     None,
-            dtype=                      None,
             initializer: INI=           None):
 
         super().__init__()
@@ -33,10 +31,7 @@ class LayBlockDRT(torch.nn.Module):
         if initializer is None:
             initializer = my_initializer
 
-        self.ln_in = torch.nn.LayerNorm(
-            normalized_shape=   in_width,
-            device=             device,
-            dtype=              dtype) if in_lay_norm else None
+        self.ln_in = torch.nn.LayerNorm(normalized_shape=in_width) if in_lay_norm else None
 
         self.denses = []
         self.drop_interlay = None
@@ -47,8 +42,6 @@ class LayBlockDRT(torch.nn.Module):
                 out_features=   in_width * dns_scale,
                 activation=     activation,
                 bias=           True,
-                device=         device,
-                dtype=          dtype,
                 initializer=    initializer))
             self.add_module(f'dense0', self.denses[-1])
 
@@ -61,8 +54,6 @@ class LayBlockDRT(torch.nn.Module):
                 out_features=   in_width,
                 activation=     None,
                 bias=           True,
-                device=         device,
-                dtype=          dtype,
                 initializer=    initializer))
             self.add_module(f'dense1', self.denses[-1])
         else:
@@ -72,8 +63,6 @@ class LayBlockDRT(torch.nn.Module):
                 out_features=   in_width,
                 activation=     activation,
                 bias=           True,
-                device=         device,
-                dtype=          dtype,
                 initializer=    initializer))
             self.add_module(f'dense0', self.denses[-1])
 
@@ -131,8 +120,6 @@ class EncDRT(torch.nn.Module):
             res_dropout: float=         0.0,
             lay_norm=                   True,           # LN in each LayBlockDRT (input)
             do_zeroes: bool=            True,
-            device=                     None,
-            dtype=                      None,
             initializer: INI=           None):
 
         super().__init__()
@@ -142,10 +129,7 @@ class EncDRT(torch.nn.Module):
         if initializer is None:
             initializer = my_initializer
 
-        self.ln_in = torch.nn.LayerNorm(
-            normalized_shape=   in_width,
-            device=             device,
-            dtype=              dtype) if in_lay_norm else None
+        self.ln_in = torch.nn.LayerNorm(normalized_shape=in_width) if in_lay_norm else None
 
         self.in_drop_lay = torch.nn.Dropout(p=in_dropout) if in_dropout else None
 
@@ -156,8 +140,6 @@ class EncDRT(torch.nn.Module):
             out_features=   self.lay_width,
             activation=     None,
             bias=           False,
-            device=         device,
-            dtype=          dtype,
             initializer=    initializer) if self.lay_width != self.in_width else None
 
         num_layers_to_build = 1 if shared_lays else n_layers
@@ -172,8 +154,6 @@ class EncDRT(torch.nn.Module):
             residual=           residual,
             res_dropout=        res_dropout,
             do_zeroes=          self.do_zeroes,
-            device=             device,
-            dtype=              dtype,
             initializer=        initializer
         ) for _ in range(num_layers_to_build)]
         for lix,lay in enumerate(self.drt_lays):
@@ -245,8 +225,6 @@ class LayBlockCNN(torch.nn.Module):
             # other
             do_zeroes: bool=            True,
             detach_history: bool=       True,           # by default state (history) will be detached on output
-            device=                     None,
-            dtype=                      None,
             initializer: INI=           None):
 
         super().__init__()
@@ -257,18 +235,13 @@ class LayBlockCNN(torch.nn.Module):
         self.kernel_size = kernel_size
         self.do_zeroes = do_zeroes
 
-        self.lay_ln = torch.nn.LayerNorm(
-            normalized_shape=   self.n_filters,
-            device=             device,
-            dtype=              dtype)
+        self.lay_ln = torch.nn.LayerNorm(normalized_shape=self.n_filters)
 
         self.lay_conv1D = LayConv1D(
             in_features=    self.n_filters,
             n_filters=      self.n_filters,
             kernel_size=    self.kernel_size,
             padding=        'valid',
-            device=         device,
-            dtype=          dtype,
             activation=     None,
             initializer=    initializer)
 
@@ -289,8 +262,6 @@ class LayBlockCNN(torch.nn.Module):
             residual=       ldrt_residual,
             res_dropout=    ldrt_res_dropout,
             do_zeroes=      self.do_zeroes,
-            device=         device,
-            dtype=          dtype,
             initializer=    initializer) if do_ldrt else None
 
         self.detach_history = detach_history
@@ -410,8 +381,6 @@ class EncCNN(torch.nn.Module):
             # other
             do_zeroes: bool=            True,
             detach_history: bool=       True,           # by default state (history) will be detached in output
-            device=                     None,
-            dtype=                      None,
             initializer: INI=           None):
 
         super(EncCNN, self).__init__()
@@ -431,8 +400,6 @@ class EncCNN(torch.nn.Module):
             out_features=   self.n_filters,
             activation=     None,
             bias=           False,
-            device=         device,
-            dtype=          dtype,
             initializer=    initializer) if self.in_features != self.n_filters else None
 
         num_blocks_to_build = 1 if shared_lays else self.n_layers
@@ -452,18 +419,13 @@ class EncCNN(torch.nn.Module):
             ldrt_res_dropout=   ldrt_res_dropout,
             do_zeroes=          self.do_zeroes,
             detach_history=     detach_history,
-            device=             device,
-            dtype=              dtype,
             initializer=        initializer) for _ in range(num_blocks_to_build)]
 
         for bix,block in enumerate(self.blocks): self.add_module(f'block_{bix}',block)
 
         if shared_lays and self.n_layers > 1: self.blocks *= self.n_layers
 
-        self.out_ln = torch.nn.LayerNorm(
-            normalized_shape=   self.n_filters,
-            device=             device,
-            dtype=              dtype)
+        self.out_ln = torch.nn.LayerNorm(normalized_shape=self.n_filters)
 
     def get_zero_history(self) -> TNS:
         """ prepares initial history for casual mode
@@ -560,16 +522,11 @@ class LayBlockTNS(torch.nn.Module):
             dropout_att: float= 0.0,            # in original (torch.nn..) implementation dropout_att == dropout
             activation: ACT=    torch.nn.ReLU,
             dropout_res: float= 0.0,            # dropout on residual bypass
-            do_zeroes: bool=    True,
-            device=             None,
-            dtype=              None):
+            do_zeroes: bool=    True):
 
         super().__init__()
 
-        self.norm1 = torch.nn.LayerNorm(
-            normalized_shape=   d_model,
-            device=             device,
-            dtype=              dtype)
+        self.norm1 = torch.nn.LayerNorm(normalized_shape=d_model)
 
         self.self_attn = MyMHA(
             embed_dim=      d_model,
@@ -580,9 +537,7 @@ class LayBlockTNS(torch.nn.Module):
             add_zero_attn=  False,
             kdim=           None,
             vdim=           None,
-            batch_first=    True,
-            device=         device,
-            dtype=          dtype)
+            batch_first=    True)
 
         self.dropout1 = torch.nn.Dropout(p=dropout) if dropout else None
 
@@ -599,8 +554,6 @@ class LayBlockTNS(torch.nn.Module):
             residual=           True,
             res_dropout=        dropout_res,
             do_zeroes=          do_zeroes,
-            device=             device,
-            dtype=              dtype,
             initializer=        bert_initializer)
 
     def forward(
@@ -654,8 +607,7 @@ class EncTNS(torch.nn.Module):
             activation: ACT=                        torch.nn.ReLU,
             dropout_res: float=                     0.0,
             do_zeroes: bool=                        True,
-            device=                                 None,
-            dtype=                                  None):
+    ):
 
         super().__init__()
 
@@ -665,17 +617,13 @@ class EncTNS(torch.nn.Module):
         # positional embeddings (trainable)
         self.pos_emb = None
         if max_seq_len:
-            self.pos_emb = torch.nn.Parameter(
-                data=   torch.empty(
-                    size=   (max_seq_len, self.d_model),
-                    device= device,
-                    dtype=  dtype))
+            self.pos_emb = torch.nn.Parameter(data=torch.empty(size=(max_seq_len, self.d_model)))
             bert_initializer(self.pos_emb)
 
         self.initial_task_query = None
         if not initial_TAT_avg:
             self.initial_task_query = torch.nn.Parameter(
-                data=           torch.empty(self.d_model, device=device, dtype=dtype),
+                data=           torch.empty(self.d_model),
                 requires_grad=  False) # TODO: check with experiments
             bert_initializer(self.initial_task_query)
 
@@ -697,8 +645,6 @@ class EncTNS(torch.nn.Module):
             activation=     activation,
             dropout_res=    dropout_res,
             do_zeroes=      self.do_zeroes,
-            device=         device,
-            dtype=          dtype,
         ) for _ in range(num_layers_to_build)]
         for lix,lay in enumerate(layers): self.add_module(f'lay_{lix}',lay)
 
@@ -711,10 +657,7 @@ class EncTNS(torch.nn.Module):
         self.layers = layers[:num_layers]
         self.layers_TAT = layers[num_layers:]
 
-        self.norm = torch.nn.LayerNorm(
-            normalized_shape=   self.d_model,
-            device=             device,
-            dtype=              dtype)
+        self.norm = torch.nn.LayerNorm(normalized_shape=self.d_model)
 
     def _encode(self, inp:TNS, mask:Optional[TNS]=None) -> DTNS:
         """ base Transformer encoding """

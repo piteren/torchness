@@ -23,8 +23,6 @@ class SFeatsCSF(Module):
             lay_norm=                               True,
             do_zeroes: bool=                        True,
             class_weights: Optional[Tuple[float]]=  None,
-            device=                                 None,
-            dtype=                                  None,
             initializer: INI=                       None,
             **kwargs):
 
@@ -48,8 +46,6 @@ class SFeatsCSF(Module):
             res_dropout=        0.0,
             lay_norm=           lay_norm,
             do_zeroes=          do_zeroes,
-            device=             device,
-            dtype=              dtype,
             initializer=        initializer)
 
         self.logits = LayDense(
@@ -57,8 +53,7 @@ class SFeatsCSF(Module):
             out_features=   num_classes,
             activation=     None,
             bias=           False,
-            initializer=    initializer,
-            dtype=          dtype)
+            initializer=    initializer)
 
         if class_weights:
             class_weights = torch.nn.Parameter(torch.tensor(class_weights), requires_grad=False)
