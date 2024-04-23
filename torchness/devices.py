@@ -43,17 +43,23 @@ DevicesTorchness: Union[int, None, float, str, torch.device, List[Union[int,None
 def get_cuda_mem():
     """ returns cuda memory size (system first device) """
     devs = GPUtil.getGPUs()
-    if devs: return devs[0].memoryTotal
-    else: return 0
+    return devs[0].memoryTotal if devs else 0
 
 
-def get_available_cuda_id(max_mem=None) -> List[int]: # None sets automatic, otherwise (0,1.1] (above 1 for all)
-    """ returns list of available GPUs ids """
-    if not max_mem:
-        tot_mem = get_cuda_mem()
-        if tot_mem < 5000:  max_mem=0.35 # small GPU case, probably system single GPU
-        else:               max_mem=0.2
-    return GPUtil.getAvailable(limit=20, maxMemory=max_mem)
+def get_available_cuda_id(
+        max_load: float=            0.5,
+        max_mem: Optional[float]=   None,
+) -> List[int]:
+    """ returns list of available GPUs ids
+    max_load - <0.0 - 1.0> factor of GPU utilization
+              to still consider GPU as an available one,
+    max_mem - <0.0 - 1.0> factor of GPU memory that may be used (occupied already)
+              to still consider GPU as an available one,
+              for None sets auto """
+    if max_mem is None:
+        # small GPU (<5000) may be used by the system significantly, but still available
+        max_mem = 0.35 if get_cuda_mem() < 5000 else 0.2
+    return GPUtil.getAvailable(limit=20, maxLoad=max_load, maxMemory=max_mem)
 
 
 def report_cuda() -> str:
@@ -66,10 +72,13 @@ def report_cuda() -> str:
 
 def _get_devices_torchness(
         devices: DevicesTorchness=  -1,
-        logger=                 None,
-        loglevel=               20,
+        max_load: float=            0.5,
+        max_mem: Optional[float]=   None,
+        logger=                     None,
+        loglevel=                   20,
 ) -> List[Union[int,None]]:
-    """ returns torchness representation of given devices """
+    """ returns torchness representation of given devices
+    max_load and max_mem are used only when requesting AVAILABLE CUDA (with -int or []) """
 
     if not logger:
         logger = get_pylogger(name='_get_devices_torchness', level=loglevel)
@@ -82,7 +91,7 @@ def _get_devices_torchness(
     # try to get available CUDA
     available_cuda_id = []
     try:
-        available_cuda_id = get_available_cuda_id()
+        available_cuda_id = get_available_cuda_id(max_load=max_load, max_mem=max_mem)
     except Exception as e:
         logger.warning(f'could not get CUDA devices, got EXCEPTION: {e}')
 
@@ -145,22 +154,29 @@ def _get_devices_torchness(
 
 def get_devices(
         devices: DevicesTorchness=  -1,
-        torch_namespace: bool=  True,
-        logger=                 None,
-        loglevel=               20,
+        max_load: float=            0.5,
+        max_mem: Optional[float]=   None,
+        eventually_cpu: bool=       False,
+        torch_namespace: bool=      True,
+        logger=                     None,
+        loglevel=                   20,
 ) -> List[Union[int,None,str]]:
-    """ resolves representation given with DevicesTorchness
-    into dev_torchness base form or List[str] (PyTorch namespace) """
+    """ resolves representation given with devices (DevicesTorchness)
+    max_load and max_mem are used only when requesting AVAILABLE CUDA (with -int or []) """
 
     if not logger:
         logger = get_pylogger(name='get_devices', level=loglevel)
 
-    devices_base = _get_devices_torchness(devices=devices, logger=logger)
+    devices_base = _get_devices_torchness(
+        devices=    devices,
+        max_load=   max_load,
+        max_mem=    max_mem,
+        logger=     logger)
 
-    if not torch_namespace:
-        return devices_base
-    else:
-        return [f'cuda:{dev}' if type(dev) is int else 'cpu' for dev in devices_base]
+    d = [f'cuda:{dev}' if type(dev) is int else 'cpu' for dev in devices_base] if torch_namespace else devices_base
+    if not d and eventually_cpu:
+        d = ['cpu']
+    return d
 
 
 def mask_cuda(ids: Optional[List[int] or int]=None):
@@ -175,7 +191,7 @@ def mask_cuda(ids: Optional[List[int] or int]=None):
 
 def mask_cuda_devices(
         devices: DevicesTorchness=  -1,
-        logger=                 None):
+        logger=                     None):
     """ wraps mask_cuda to hold DevicesTorchness """
     devices = get_devices(devices, torch_namespace=False, logger=logger)
     ids = [d for d in devices if type(d) is int]
