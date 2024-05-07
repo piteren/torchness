@@ -1,28 +1,29 @@
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.lipytools.pylogger import get_pylogger
 import torch
-from typing import Optional
+from typing import Optional, Union, Iterator
 
-from torchness.types import NUM, NPL
+from torchness.types import NUM, NPL, TNS
+from torchness.base_elements import TorchnessException
 
 
 def clip_grad_norm_(
-        parameters: NPL,
-        max_norm: NUM,
-        norm_type: NUM= 2.0,
-        do_clip: bool=  True, # disables clipping (just GN calculations)
+        parameters: Union[NPL, Iterator[TNS]],
+        norm_type: NUM=             2.0,
+        max_norm: Optional[NUM]=    None,
+        do_clip: bool=              True,  # disables clipping (just GN calculations)
 ) -> NUM:
-    """ clips (scales) gradients of given parameters
-    copied & refactored from torch.nn.utils.clip_grad.py
-    returns norm of original parameters
-    """
+    """ computes and returns gradients norm of given parameters,
+    then optionally clips (scales) gradients,
+    copied & refactored from torch.nn.utils.clip_grad.py """
 
+    # filter out parameters
     if isinstance(parameters, torch.Tensor): parameters = [parameters]
     parameters = [p for p in parameters if p.grad is not None]
     if len(parameters) == 0:
         return 0.0
 
-    device = parameters[0].grad.device
+    device = parameters[0].grad.device  # choose single device for computation
     if norm_type == torch.inf:
         norms = [p.grad.detach().abs().max().to(device) for p in parameters]
         total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
@@ -30,6 +31,8 @@ def clip_grad_norm_(
         total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]), norm_type)
 
     if do_clip:
+        if max_norm is None:
+            raise TorchnessException('max_norm must be given when clipping')
         clip_coef = max_norm / (total_norm + 1e-6)
         clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
         for p in parameters:
