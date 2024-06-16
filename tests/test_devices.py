@@ -12,11 +12,11 @@ class TestDevices(unittest.TestCase):
         print(mem)
 
     def test_get_available_cuda_id(self):
-        av_cuda = get_available_cuda_id(max_load=0.1, max_mem=0.2)
+        av_cuda = get_available_cuda_id()
         print(av_cuda)
-        av_cuda = get_available_cuda_id(max_load=0.5, max_mem=0.5)
+        av_cuda = get_available_cuda_id(mem_free=16000)
         print(av_cuda)
-        av_cuda = get_available_cuda_id(max_load=1.0, max_mem=1.0)
+        av_cuda = get_available_cuda_id(load_max=0.5)
         print(av_cuda)
 
     def test_report_cuda(self):
@@ -109,15 +109,15 @@ class TestDevices(unittest.TestCase):
         self.assertTrue(None in d and 0 in d and -1 not in d and len(d)>3)
 
     def test_get_devices(self):
-        devices = get_devices(eventually_cpu=True)
+        devices = get_devices()
         print(devices)
-        devices = get_devices(max_load=1.0, max_mem=1.0)
+        devices = get_devices(devices=[])
         print(devices)
-        devices = get_devices(devices=[0,1], max_load=1.0, max_mem=1.0)
-        print(devices)
-        devices = get_devices(devices=[], max_load=1.0, max_mem=1.0)
+        devices = get_devices(devices=[], eventually_cpu=True)
         print(devices)
         devices = get_devices(devices=[0,1])
+        print(devices)
+        devices = get_devices(devices=[], mem_free=24000)
         print(devices)
 
     def test_get_devices_exceptions(self):

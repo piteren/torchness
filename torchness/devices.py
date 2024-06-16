@@ -47,19 +47,17 @@ def get_cuda_mem():
 
 
 def get_available_cuda_id(
-        max_load: float=            0.5,
-        max_mem: Optional[float]=   None,
+        mem_free: int=      4000,
+        load_max: float=    1.0,
 ) -> List[int]:
-    """ returns list of available GPUs ids
-    max_load - <0.0 - 1.0> factor of GPU utilization
-              to still consider GPU as an available one,
-    max_mem - <0.0 - 1.0> factor of GPU memory that may be used (occupied already)
-              to still consider GPU as an available one,
-              for None sets auto """
-    if max_mem is None:
-        # small GPU (<5000) may be used by the system significantly, but still available
-        max_mem = 0.35 if get_cuda_mem() < 5000 else 0.2
-    return GPUtil.getAvailable(limit=20, maxLoad=max_load, maxMemory=max_mem)
+    """ returns list of available GPUs ids, ordered by free memory
+    device is available if:
+    - has at least mem_free (MB)
+    - load <= load_max """
+    cuda_devices = [(device.id, int(device.memoryFree), device.load) for device in GPUtil.getGPUs()]
+    cuda_devices = [d for d in cuda_devices if d[1] >= mem_free and d[2] <= load_max]
+    cuda_devices.sort(key=lambda x:x[1], reverse=True)
+    return [d[0] for d in cuda_devices]
 
 
 def report_cuda() -> str:
@@ -72,8 +70,8 @@ def report_cuda() -> str:
 
 def _get_devices_torchness(
         devices: DevicesTorchness=  -1,
-        max_load: float=            0.5,
-        max_mem: Optional[float]=   None,
+        mem_free: int=              4000,
+        load_max: float=            1.0,
         logger=                     None,
         loglevel=                   20,
 ) -> List[Union[int,None]]:
@@ -83,7 +81,9 @@ def _get_devices_torchness(
     if not logger:
         logger = get_pylogger(name='_get_devices_torchness', level=loglevel)
 
-    if type(devices) is not list: devices = [devices]  # first convert to list
+    # first convert to list
+    if type(devices) is not list:
+        devices = [devices]
 
     cpu_count = sys_res_nfo()['cpu_count']
     logger.debug(f'got {cpu_count} CPU devices in a system')
@@ -91,7 +91,7 @@ def _get_devices_torchness(
     # try to get available CUDA
     available_cuda_id = []
     try:
-        available_cuda_id = get_available_cuda_id(max_load=max_load, max_mem=max_mem)
+        available_cuda_id = get_available_cuda_id(mem_free=mem_free, load_max=load_max)
     except Exception as e:
         logger.warning(f'could not get CUDA devices, got EXCEPTION: {e}')
 
@@ -154,23 +154,22 @@ def _get_devices_torchness(
 
 def get_devices(
         devices: DevicesTorchness=  -1,
-        max_load: float=            0.5,
-        max_mem: Optional[float]=   None,
+        mem_free: int=              4000,
+        load_max: float=            1.0,
         eventually_cpu: bool=       False,
         torch_namespace: bool=      True,
         logger=                     None,
         loglevel=                   20,
 ) -> List[Union[int,None,str]]:
-    """ resolves representation given with devices (DevicesTorchness)
-    max_load and max_mem are used only when requesting AVAILABLE CUDA (with -int or []) """
+    """ resolves representation given with devices (DevicesTorchness) """
 
     if not logger:
         logger = get_pylogger(name='get_devices', level=loglevel)
 
     devices_base = _get_devices_torchness(
         devices=    devices,
-        max_load=   max_load,
-        max_mem=    max_mem,
+        mem_free=   mem_free,
+        load_max=   load_max,
         logger=     logger)
 
     d = [f'cuda:{dev}' if type(dev) is int else 'cpu' for dev in devices_base] if torch_namespace else devices_base
