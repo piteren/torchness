@@ -13,29 +13,34 @@ def clip_grad_norm_(
         max_norm: Optional[NUM]=    None,
         do_clip: bool=              True,  # disables clipping (just GN calculations)
 ) -> NUM:
-    """ computes and returns gradients norm of given parameters,
+    """ computes and returns gradients norm (input) of given parameters,
     then optionally clips (scales) gradients,
     copied & refactored from torch.nn.utils.clip_grad.py """
 
     # filter out parameters
-    if isinstance(parameters, torch.Tensor): parameters = [parameters]
-    parameters = [p for p in parameters if p.grad is not None]
-    if len(parameters) == 0:
+    if isinstance(parameters, torch.Tensor):
+        parameters = [parameters]
+    parameters_grad = [p for p in parameters if p.grad is not None]
+    if len(parameters_grad) == 0:
         return 0.0
 
-    device = parameters[0].grad.device  # choose single device for computation
+    device = parameters_grad[0].grad.device  # choose single device for computation
     if norm_type == torch.inf:
-        norms = [p.grad.detach().abs().max().to(device) for p in parameters]
+        norms = [p.grad.detach().abs().max().to(device) for p in parameters_grad]
         total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
     else:
-        total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]), norm_type)
+        total_norm = torch.norm(
+            torch.stack([
+                torch.norm(p.grad.detach(), norm_type).to(device)
+                for p in parameters_grad]),
+            norm_type)
 
     if do_clip:
         if max_norm is None:
             raise TorchnessException('max_norm must be given when clipping')
         clip_coef = max_norm / (total_norm + 1e-6)
         clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
-        for p in parameters:
+        for p in parameters_grad:
             p.grad.detach().mul_(clip_coef_clamped.to(p.grad.device))
 
     return total_norm
