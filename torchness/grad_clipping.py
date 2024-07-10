@@ -55,7 +55,7 @@ class GradClipperMAVG:
             start_val: NUM=             0.1,    # MovAvg start value
             factor: NUM=                0.01,   # MovAvg factor
             first_avg=                  True,   # use MovAvg start averaging
-            max_clip: Optional[NUM]=    None,   # clipping value won't go higher
+            max_clip: Optional[NUM]=    None,   # clipped value won't go higher
             max_upd: NUM=               1.5,    # max factor of gg_mavg to update with
             do_clip: bool=              True,   # disables clipping (just GN calculations)
             logger=                     None,
