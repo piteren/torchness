@@ -19,7 +19,8 @@ class Batcher:
     """
     Batcher
         takes data and prepares batches
-        data for training, validation or testing is a dict: {key: np.ndarray or torch.tensor}
+        data for training (TR) / validation (VL) / testing (TS)
+        is a dict: {key: np.ndarray or torch.tensor}
         key is a name of input tensor (like: 'x','feats','labels' etc.)
         batch is prepared from each key
     """
@@ -61,9 +62,12 @@ class Batcher:
                 seed=       seed)
 
         self._data_TR = data_TR
+        self._data_TR_len = self._data_TR[self._data_keys[0]].shape[0]
         self._data_VL = data_VL
+        data_VL_len = self._data_VL[self._data_keys[0]].shape[0] if self._data_VL else 0
         self._data_TS = data_TS
-        self._data_len_TR = self._data_TR[self._data_keys[0]].shape[0]
+        data_TS_len = self._data_TS[self._data_keys[0]].shape[0] if self._data_TS else 0
+
 
         self._batch_size = None
         self.set_batch_size(batch_size)
@@ -74,7 +78,10 @@ class Batcher:
         self._VL_batches = None
         self._TS_batches = None
 
-        self.__log.info(f'*** Batcher *** initialized with {self._data_len_TR} samples of data in keys, batch size: {batch_size}')
+        self.__log.info(f'*** Batcher *** initialized, batch size: {batch_size}')
+        self.__log.info(f' > data_TR_len: {self._data_TR_len}')
+        self.__log.info(f' > data_VL_len: {data_VL_len}')
+        self.__log.info(f' > data_TS_len: {data_TS_len}')
         self.__log.debug('> Batcher keys:')
         for k in self._data_keys:
             self.__log.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
@@ -115,22 +122,22 @@ class Batcher:
     def _extend_ixmap(self):
 
         if self.btype == 'base':
-            self._data_ixmap += list(range(self._data_len_TR))
+            self._data_ixmap += list(range(self._data_TR_len))
 
         if self.btype == 'random':
             self._data_ixmap += self.rng.choice(
-                a=          self._data_len_TR,
+                a=          self._data_TR_len,
                 size=       self._batch_size,
                 replace=    False).tolist()
 
         if self.btype == 'random_cov':
-            new_ixmap = np.arange(self._data_len_TR)
+            new_ixmap = np.arange(self._data_TR_len)
             self.rng.shuffle(new_ixmap)
             new_ixmap = new_ixmap.tolist()
             self._data_ixmap += new_ixmap
 
     def set_batch_size(self, bs: int):
-        if bs > self._data_len_TR:
+        if bs > self._data_TR_len:
             raise BatcherException('ERR: cannot set batch size larger than given TR data!')
         self._batch_size = bs
 
