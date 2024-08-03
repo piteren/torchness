@@ -48,7 +48,7 @@ class Batcher:
 
         self.btype = batching_type
 
-        self._data_keys = sorted(list(data_TR.keys()))
+        self._keys = sorted(list(data_TR.keys()))
 
         if split_VL > 0 or split_TS > 0:
 
@@ -62,11 +62,11 @@ class Batcher:
                 seed=       seed)
 
         self._data_TR = data_TR
-        self._data_TR_len = self._data_TR[self._data_keys[0]].shape[0]
+        self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
         self._data_VL = data_VL
-        data_VL_len = self._data_VL[self._data_keys[0]].shape[0] if self._data_VL else 0
+        data_VL_len = self._data_VL[self._keys[0]].shape[0] if self._data_VL else 0
         self._data_TS = data_TS
-        data_TS_len = self._data_TS[self._data_keys[0]].shape[0] if self._data_TS else 0
+        data_TS_len = self._data_TS[self._keys[0]].shape[0] if self._data_TS else 0
 
 
         self._batch_size = None
@@ -83,9 +83,8 @@ class Batcher:
         self.__log.info(f' > data_VL_len: {data_VL_len}')
         self.__log.info(f' > data_TS_len: {data_TS_len}')
         self.__log.debug('> Batcher keys:')
-        for k in self._data_keys:
+        for k in self._keys:
             self.__log.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
-
 
     @staticmethod
     def data_split(
@@ -151,7 +150,7 @@ class Batcher:
         
         indexes = self._data_ixmap[:self._batch_size]
         self._data_ixmap = self._data_ixmap[self._batch_size:]
-        return {k: self._data_TR[k][indexes] for k in self._data_keys}
+        return {k: self._data_TR[k][indexes] for k in self._keys}
 
     # splits data into batches of given size
     @staticmethod
@@ -185,8 +184,12 @@ class Batcher:
         return self._TS_batches
 
     def get_data_size(self) -> Tuple[int,int,int]:
-        k = self._data_keys[0]
+        k = self._keys[0]
         n_TR = self._data_TR[k].shape[0]
         n_VL = self._data_VL[k].shape[0] if self._data_VL else 0
         n_TS = self._data_TS[k].shape[0] if self._data_TS else 0
         return n_TR, n_VL, n_TS
+
+    @property
+    def keys(self) -> List[str]:
+        return self._keys
