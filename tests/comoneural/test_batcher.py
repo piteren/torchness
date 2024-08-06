@@ -14,16 +14,12 @@ class TestBatcher(unittest.TestCase):
             num_batches=    1000):
 
         for btype in BATCHING_TYPES:
-            print(f'\nStarts coverage of {btype}')
+            print(f'\nstarts coverage tests of {btype}')
 
             samples = np.arange(num_samples)
             np.random.shuffle(samples)
 
-            labels = np.random.choice(2, num_samples)
-
-            data = {
-                'samples':  samples,
-                'labels':   labels}
+            data = {'samples':samples}
 
             batcher = Batcher(data, batch_size=batch_size, batching_type=btype)
 
@@ -45,34 +41,32 @@ class TestBatcher(unittest.TestCase):
     # test for Batcher reproducibility with seed
     def test_seed(self):
 
-        print(f'\nStarts seed tests')
-
         c_size = 1000
         b_size = 64
 
         samples = np.arange(c_size)
         np.random.shuffle(samples)
 
-        labels = np.random.choice(2, c_size)
+        data = {'samples':samples}
 
-        data = {
-            'samples': samples,
-            'labels': labels}
+        for batching_type in ['random','random_cov']:
 
-        batcher = Batcher(data, batch_size=b_size, batching_type='random_cov')
-        sA = []
-        while len(sA) < 10000:
-            sA += batcher.get_batch()['samples'].tolist()
-            np.random.seed(len(sA))
+            batcher = Batcher(data, batch_size=b_size, batching_type=batching_type)
+            sA = []
+            while len(sA) < 10000:
+                sA += batcher.get_batch()['samples'].tolist()
+                np.random.seed(len(sA))
 
-        batcher = Batcher(data, batch_size=b_size, batching_type='random_cov')
-        sB = []
-        while len(sB) < 10000:
-            sB += batcher.get_batch()['samples'].tolist()
-            np.random.seed(10000000-len(sB))
+            batcher = Batcher(data, batch_size=b_size, batching_type=batching_type)
+            sB = []
+            while len(sB) < 10000:
+                sB += batcher.get_batch()['samples'].tolist()
+                np.random.seed(10000000-len(sB))
 
-        seed_is_fixed = True
-        for ix in range(len(sA)):
-            if sA[ix] != sB[ix]: seed_is_fixed = False
-        print(f'final result: seed is fixed: {seed_is_fixed}!')
-        print(f' *** finished seed tests')
+            seed_is_fixed = True
+            for ix in range(len(sA)):
+                if sA[ix] != sB[ix]:
+                    seed_is_fixed = False
+
+            print(f'seed is fixed for {batching_type}: {seed_is_fixed}!')
+            self.assertTrue(seed_is_fixed)

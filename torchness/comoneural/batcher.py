@@ -10,20 +10,15 @@ BATCHING_TYPES = [
     'random_cov']   # random sampling with full coverage of data
 
 
-
 class BatcherException(Exception):
     pass
 
 
 class Batcher:
-    """
-    Batcher
-        takes data and prepares batches
-        data for training (TR) / validation (VL) / testing (TS)
-        is a dict: {key: np.ndarray or torch.tensor}
-        key is a name of input tensor (like: 'x','feats','labels' etc.)
-        batch is prepared from each key
-    """
+    """ Batcher
+    takes data and prepares batches
+    data for training (TR) / validation (VL) / testing (TS)
+    input data is a dict: {key: np.ndarray or torch.Tensor} """
 
     def __init__(
             self,
@@ -68,12 +63,12 @@ class Batcher:
         self._data_TS = data_TS
         data_TS_len = self._data_TS[self._keys[0]].shape[0] if self._data_TS else 0
 
-
         self._batch_size = None
         self.set_batch_size(batch_size)
         self._bs_mul = bs_mul
 
-        self._data_ixmap = []
+        self._data_ixmap = np.asarray([], dtype=int)
+        self._ixmap_pointer = 0
 
         self._VL_batches = None
         self._TS_batches = None
@@ -120,24 +115,27 @@ class Batcher:
 
     def _extend_ixmap(self):
 
+        _new_ixmap = None
+
         if self.btype == 'base':
-            self._data_ixmap += list(range(self._data_TR_len))
+            _new_ixmap = np.arange(self._data_TR_len)
 
         if self.btype == 'random':
-            self._data_ixmap += self.rng.choice(
+            _new_ixmap = self.rng.choice(
                 a=          self._data_TR_len,
                 size=       self._batch_size,
-                replace=    False).tolist()
+                replace=    False)
 
         if self.btype == 'random_cov':
-            new_ixmap = np.arange(self._data_TR_len)
-            self.rng.shuffle(new_ixmap)
-            new_ixmap = new_ixmap.tolist()
-            self._data_ixmap += new_ixmap
+            _new_ixmap = np.arange(self._data_TR_len)
+            self.rng.shuffle(_new_ixmap)
 
-    def set_batch_size(self, bs: int):
+        self._data_ixmap = np.concat([self._data_ixmap[self._ixmap_pointer:], _new_ixmap])
+        self._ixmap_pointer = 0
+
+    def set_batch_size(self, bs:int):
         if bs > self._data_TR_len:
-            raise BatcherException('ERR: cannot set batch size larger than given TR data!')
+            raise BatcherException('ERR: cannot set batch size > TR data!')
         self._batch_size = bs
 
     def get_batch(self) -> dict:
@@ -146,10 +144,12 @@ class Batcher:
         self.rng = np.random.default_rng(self.seed_counter)
         self.seed_counter += 1
 
-        if len(self._data_ixmap) < self._batch_size: self._extend_ixmap()
+        if self._ixmap_pointer + self._batch_size > len(self._data_ixmap):
+            self._extend_ixmap()
         
-        indexes = self._data_ixmap[:self._batch_size]
-        self._data_ixmap = self._data_ixmap[self._batch_size:]
+        indexes = self._data_ixmap[self._ixmap_pointer:self._ixmap_pointer+self._batch_size]
+        self._ixmap_pointer += self._batch_size
+
         return {k: self._data_TR[k][indexes] for k in self._keys}
 
     # splits data into batches of given size
