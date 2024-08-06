@@ -5,7 +5,7 @@ from pypaq.lipytools.files import get_requirements
 
 setup(
     name=               'torchness',
-    version=            'v1.4.4',
+    version=            'v1.4.5',
     url=                'https://github.com/piteren/torchness.git',
     author=             'Piotr Niewinski',
     author_email=       'pioniewinski@gmail.com',
