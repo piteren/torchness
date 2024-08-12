@@ -130,7 +130,7 @@ class Batcher:
             _new_ixmap = np.arange(self._data_TR_len)
             self.rng.shuffle(_new_ixmap)
 
-        self._data_ixmap = np.concat([self._data_ixmap[self._ixmap_pointer:], _new_ixmap])
+        self._data_ixmap = np.concatenate([self._data_ixmap[self._ixmap_pointer:], _new_ixmap])
         self._ixmap_pointer = 0
 
     def set_batch_size(self, bs:int):
