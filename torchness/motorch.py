@@ -2,7 +2,7 @@ import numpy as np
 import shutil
 from sklearn.metrics import f1_score
 import torch
-from typing import Optional, Dict, Tuple, Any
+from typing import Optional, Dict, Tuple, Any, Union
 
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.files import prep_folder
@@ -11,7 +11,7 @@ from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
 from torchness.comoneural.batcher import Batcher
-from torchness.types import TNS, DTNS, NUM
+from torchness.types import TNS, DTNS, NUM, NPL
 from torchness.devices import get_devices
 from torchness.base_elements import mrg_ckpts
 from torchness.scaled_LR import ScaledLR
@@ -743,24 +743,24 @@ class MOTorch(ParaSave):
     def load_data(
             self,
             data_TR: Dict[str,np.ndarray],
-            data_VL: Optional[Dict[str,np.ndarray]]=    None,
-            data_TS: Optional[Dict[str,np.ndarray]]=    None,
-            split_VL: float=                            0.0,
-            split_TS: float=                            0.0):
+            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
+            split_factor: float=                                                0.0):
         """ converts and loads data to Batcher """
 
         data_TR = {k: self.convert(data_TR[k]) for k in data_TR}
-        if data_VL:
-            data_VL = {k: self.convert(data_VL[k]) for k in data_VL}
+
         if data_TS:
-            data_TS = {k: self.convert(data_TS[k]) for k in data_TS}
+            # named test-set
+            if type(list(data_TS.values())[0]) is dict:
+                for k in data_TS:
+                    data_TS[k] = {sk: self.convert(data_TS[k][sk]) for sk in data_TS[k]}
+            else:
+                data_TS = {k: self.convert(data_TS[k]) for k in data_TS}
 
         self._batcher = Batcher(
             data_TR=        data_TR,
-            data_VL=        data_VL,
             data_TS=        data_TS,
-            split_VL=       split_VL,
-            split_TS=       split_TS,
+            split_factor=   split_factor,
             batch_size=     self.batch_size,
             batching_type=  'random_cov',
             seed=           self.seed,
@@ -769,26 +769,19 @@ class MOTorch(ParaSave):
 
     def run_train(
             self,
-            data_TR: Dict[str,np.ndarray],  # INFO: it will also accept Dict[str,torch.Tensor] :) !
-            data_VL: Optional[Dict[str,np.ndarray]]=    None,
-            data_TS: Optional[Dict[str,np.ndarray]]=    None,
-            split_VL: float=                            0.0,
-            split_TS: float=                            0.0,
-            n_batches: Optional[int]=                   None,
-            test_freq=                                  100,    # number of batches between tests, model SHOULD BE tested while training
-            mov_avg_factor=                             0.1,
-            save_max=                                   True,   # allows to save model while training (after max test)
-            use_F1=                                     True,   # uses F1 as a train/test score (not acc)
+            data_TR: Dict[str,np.ndarray],  # INFO: it also accepts Dict[str,torch.Tensor]
+            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
+            split_factor: float=        0.0,
+            n_batches: Optional[int]=   None,
+            test_freq=                  100,    # number of batches between tests, model SHOULD BE tested while training
+            mov_avg_factor=             0.1,
+            save_max=                   True,   # allows to save model while training (after max test)
+            use_F1=                     True,   # uses F1 as a train/test score (not acc)
         ) -> Optional[float]:
         """ trains model, returns optional test score """
 
         if data_TR:
-            self.load_data(
-                data_TR=    data_TR,
-                data_VL=    data_VL,
-                data_TS=    data_TS,
-                split_VL=   split_VL,
-                split_TS=   split_TS)
+            self.load_data(data_TR=data_TR, data_TS=data_TS, split_factor=split_factor)
 
         if not self._batcher: raise MOTorchException(f'{self.name} has not been given data for training, use load_data()')
 
@@ -845,37 +838,44 @@ class MOTorch(ParaSave):
 
             if batch_IX in ts_bIX:
 
-                ts_loss, ts_acc, ts_f1 = self.run_test()
+                res = self.run_test()
+                first_key = list(res.keys())[0]
 
-                ts_score = ts_f1 if use_F1 else ts_acc
-                if ts_score is not None:
-                    ts_score_all_results.append(ts_score)
-                if self.do_TB:
-                    if ts_loss is not None:
-                        self.log_TB(value=ts_loss,                    tag='ts/loss',              step=self.train_step)
-                    if ts_acc is not None:
-                        self.log_TB(value=ts_acc,                     tag='ts/acc',               step=self.train_step)
-                    if ts_f1 is not None:
-                        self.log_TB(value=ts_f1,                      tag='ts/F1',                step=self.train_step)
+                for k in res:
+
+                    ts_loss, ts_acc, ts_f1 = res[k]
+
+                    ts_score = ts_f1 if use_F1 else ts_acc
                     if ts_score is not None:
-                        self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'ts/{score_name}_mav', step=self.train_step)
+                        ts_score_all_results.append(ts_score)
 
-                tr_acc_nfo = f'{100*sum(tr_accL)/test_freq:.1f}' if acc is not None else '--'
-                tr_f1_nfo =  f'{100*sum(tr_f1L)/test_freq:.1f}' if f1 is not None else '--'
-                tr_loss_nfo = f'{sum(tr_lssL)/test_freq:.3f}'
-                ts_acc_nfo = f'{100*ts_acc:.1f}' if ts_acc is not None else '--'
-                ts_f1_nfo = f'{100*ts_f1:.1f}' if ts_f1 is not None else '--'
-                ts_loss_nfo = f'{ts_loss:.3f}' if ts_loss is not None else '--'
-                self._log.info(f'# {self["train_step"]:5d} TR: {tr_acc_nfo} / {tr_f1_nfo} / {tr_loss_nfo} -- TS: {ts_acc_nfo} / {ts_f1_nfo} / {ts_loss_nfo}')
-                tr_accL = []
-                tr_f1L = []
-                tr_lssL = []
+                    key_name = f'_{k}' if k is not None else ''
+                    if self.do_TB:
+                        if ts_loss is not None:
+                            self.log_TB(value=ts_loss,                    tag=f'ts{key_name}/loss',              step=self.train_step)
+                        if ts_acc is not None:
+                            self.log_TB(value=ts_acc,                     tag=f'ts{key_name}/acc',               step=self.train_step)
+                        if ts_f1 is not None:
+                            self.log_TB(value=ts_f1,                      tag=f'ts{key_name}/F1',                step=self.train_step)
+                        if ts_score is not None:
+                            self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'ts{key_name}/{score_name}_mav', step=self.train_step)
 
-                # model is saved for max ts_score
-                if ts_score is not None and ts_score > ts_score_max:
-                    ts_score_max = ts_score
-                    if not self.read_only and save_max:
-                        self.save_ckpt()
+                    tr_acc_nfo = f'{100*sum(tr_accL)/test_freq:.1f}' if acc is not None else '--'
+                    tr_f1_nfo =  f'{100*sum(tr_f1L)/test_freq:.1f}' if f1 is not None else '--'
+                    tr_loss_nfo = f'{sum(tr_lssL)/test_freq:.3f}'
+                    ts_acc_nfo = f'{100*ts_acc:.1f}' if ts_acc is not None else '--'
+                    ts_f1_nfo = f'{100*ts_f1:.1f}' if ts_f1 is not None else '--'
+                    ts_loss_nfo = f'{ts_loss:.3f}' if ts_loss is not None else '--'
+                    self._log.info(f'# {self["train_step"]:5d} TR: {tr_acc_nfo} / {tr_f1_nfo} / {tr_loss_nfo} -- TS{key_name}: {ts_acc_nfo} / {ts_f1_nfo} / {ts_loss_nfo}')
+                    tr_accL = []
+                    tr_f1L = []
+                    tr_lssL = []
+
+                    # model is saved for max ts_score for the first_key (TS name)
+                    if k==first_key and ts_score is not None and ts_score > ts_score_max:
+                        ts_score_max = ts_score
+                        if not self.read_only and save_max:
+                            self.save_ckpt()
 
         self._log.info(f'### model {self.name} finished training')
 
@@ -909,8 +909,8 @@ class MOTorch(ParaSave):
     def run_test(
             self,
             data: Optional[Dict[str,np.ndarray]]=   None,
-            split_TS: float=                        1.0, # if data for test will be given above, by default MOTorch will be tested on ALL
-    ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+            split_factor: float=                    1.0, # if data for test will be given above, by default MOTorch will be tested on ALL
+    ) -> Dict[Union[str,None], Tuple[Optional[float], Optional[float], Optional[float]]]:
         """ tests model
         returns:
             - optional loss (average)
@@ -919,27 +919,33 @@ class MOTorch(ParaSave):
         """
 
         if data:
-            self.load_data(data_TR=data, split_TS=split_TS)
+            self.load_data(data_TR=data, split_factor=split_factor)
 
-        if not self._batcher: raise MOTorchException(f'{self.name} has not been given data for testing, use load_data() or give it while testing!')
+        if not self._batcher:
+            raise MOTorchException(f'{self.name} has not been given data for testing, use load_data() or give it while testing!')
 
-        batches = self._batcher.get_TS_batches()
-        lossL = []
-        accL = []
-        f1L = []
-        n_all = 0
-        for batch in batches:
-            out = self.loss(**batch, bypass_data_conv=True)
-            n_new = len(out['logits'])
-            n_all += n_new
-            lossL.append(out['loss']*n_new)
-            if 'acc' in out: accL.append(out['acc']*n_new)
-            if 'f1' in out:  f1L.append(out['f1']*n_new)
+        res = {}
+        for k in self._batcher.get_TS_names():
 
-        acc_avg = sum(accL)/n_all if accL else None
-        f1_avg = sum(f1L)/n_all if f1L else None
-        loss_avg = sum(lossL)/n_all if lossL else None
-        return loss_avg, acc_avg, f1_avg
+            batches = self._batcher.get_TS_batches()
+            lossL = []
+            accL = []
+            f1L = []
+            n_all = 0
+            for batch in batches:
+                out = self.loss(**batch, bypass_data_conv=True)
+                n_new = len(out['logits'])
+                n_all += n_new
+                lossL.append(out['loss']*n_new)
+                if 'acc' in out: accL.append(out['acc']*n_new)
+                if 'f1' in out:  f1L.append(out['f1']*n_new)
+
+            acc_avg = sum(accL)/n_all if accL else None
+            f1_avg = sum(f1L)/n_all if f1L else None
+            loss_avg = sum(lossL)/n_all if lossL else None
+            res[k] = loss_avg, acc_avg, f1_avg
+
+        return res
 
     # *********************************************************************************************** other / properties
 

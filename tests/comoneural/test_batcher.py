@@ -7,6 +7,43 @@ from pypaq.lipytools.stats import msmx
 
 class TestBatcher(unittest.TestCase):
 
+    def test_base_init(self):
+
+        data = {'input': np.random.rand(1000,3)}
+        batcher = Batcher(data_TR=data)
+        nTR, nTS = batcher.get_data_size()
+        self.assertTrue((nTR,nTS)==(1000,0))
+        self.assertTrue(batcher.keys==['input'])
+
+        batcher = Batcher(data_TR=data, split_factor=0.2)
+        nTR, nTS = batcher.get_data_size()
+        self.assertTrue((nTR, nTS) == (800,200))
+
+        data_TS = {'input': np.random.rand(300,3)}
+        batcher = Batcher(data_TR=data, data_TS=data_TS)
+        nTR, nTS = batcher.get_data_size()
+        self.assertTrue((nTR, nTS) == (1000,300))
+
+    def test_TS_batches(self):
+
+        data = {'input': np.random.rand(1000,3)}
+        data_TS = {'input': np.random.rand(300,3)}
+        batcher = Batcher(data_TR=data, data_TS=data_TS, batch_size=15, batch_size_TS_mul=2)
+        batches_TS =batcher.get_TS_batches()
+        self.assertTrue(len(batches_TS)==10)
+
+        data = {'input': np.random.rand(1000,3)}
+        data_TS = {
+            'test_A': {'input': np.random.rand(300,3)},
+            'test_B': {'input': np.random.rand(200,3)},
+        }
+        batcher = Batcher(data_TR=data, data_TS=data_TS, batch_size=10, batch_size_TS_mul=2)
+        nTR, nTS = batcher.get_data_size()
+        self.assertTrue((nTR, nTS) == (1000,500))
+        batches_TS = batcher.get_TS_batches('test_B')
+        self.assertTrue(len(batches_TS) == 10)
+
+
     def test_coverage(
             self,
             num_samples=    1000,
@@ -21,7 +58,7 @@ class TestBatcher(unittest.TestCase):
 
             data = {'samples':samples}
 
-            batcher = Batcher(data, batch_size=batch_size, batching_type=btype)
+            batcher = Batcher(data_TR=data, batch_size=batch_size, batching_type=btype)
 
             sL = []
             n_b = 0
