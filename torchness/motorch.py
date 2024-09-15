@@ -10,7 +10,7 @@ from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
-from torchness.comoneural.batcher import Batcher
+from torchness.comoneural.batcher import DataBatcher
 from torchness.types import TNS, DTNS, NUM, NPL
 from torchness.devices import get_devices
 from torchness.base_elements import mrg_ckpts
@@ -757,7 +757,7 @@ class MOTorch(ParaSave):
             else:
                 data_TS = {k: self.convert(data_TS[k]) for k in data_TS}
 
-        self._batcher = Batcher(
+        self._batcher = DataBatcher(
             data_TR=        data_TR,
             data_TS=        data_TS,
             split_factor=   split_factor,

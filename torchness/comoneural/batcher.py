@@ -62,7 +62,7 @@ class BaseBatcher(ABC):
 
         self.btype = batching_type
 
-        # TODO: here first chunk is loaded
+        # INFO: here first chunk is loaded
         self._data_TR = self.load_data_TR_chunk()
         self._keys = sorted(list(self._data_TR.keys()))
         self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
