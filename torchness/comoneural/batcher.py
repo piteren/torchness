@@ -274,6 +274,9 @@ class FilesBatcher(BaseBatcher):
             level=  loglevel)
 
         self._data_files = data_files
+        if not self._data_files:
+            raise BatcherException(f'data_files is empty: {data_files}')
+
         self._chunk_builder = chunk_builder
         self.logger.info(f'*** FilesBatcher *** initializes with {len(self._data_files)} files (TR chunks).')
 
