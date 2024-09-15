@@ -5,8 +5,9 @@ from typing import Optional, Callable, Dict, Union, Any, Sequence
 ACT = Optional[type(torch.nn.Module)]       # activation type
 INI = Optional[Callable]                    # initializer type
 
-TNS = torch.Tensor                          # Tensor
-DTNS = Dict[str, Union[TNS,Any]]            # dict {str: Tensor or Any}
+ARR = np.ndarray                            # numpy array
+TNS = torch.Tensor                          # torch Tensor
+DTNS = Dict[str, Union[TNS,Any]]            # dict {str: TNS or Any}
 
-NUM = Union[int, float, np.ndarray, TNS]    # extends pypaq NUM with Tensor
-NPL = Union[Sequence[NUM], np.ndarray, TNS] # extends pypaq NPL with Tensor
+NUM = Union[int, float, ARR, TNS]           # extends pypaq NUM with TNS
+NPL = Union[Sequence[NUM], ARR, TNS]        # extends pypaq NPL with TNS

@@ -1,26 +1,31 @@
-import unittest
 import numpy as np
+from pypaq.lipytools.files import prep_folder, w_pickle, list_dir, r_pickle
+import unittest
 
-from torchness.comoneural.batcher import Batcher, BATCHING_TYPES
+from tests.envy import flush_tmp_dir
+
+from torchness.comoneural.batcher import DataBatcher, FilesBatcher, BATCHING_TYPES
 from pypaq.lipytools.stats import msmx
 
+BATCHER_DATA_DIR = f'{flush_tmp_dir()}/comoneural/batcher/datafiles'
 
-class TestBatcher(unittest.TestCase):
+
+class TestDataBatcher(unittest.TestCase):
 
     def test_base_init(self):
 
         data = {'input': np.random.rand(1000,3)}
-        batcher = Batcher(data_TR=data)
+        batcher = DataBatcher(data_TR=data)
         nTR, nTS = batcher.get_data_size()
         self.assertTrue((nTR,nTS)==(1000,0))
         self.assertTrue(batcher.keys==['input'])
 
-        batcher = Batcher(data_TR=data, split_factor=0.2)
+        batcher = DataBatcher(data_TR=data, split_factor=0.2)
         nTR, nTS = batcher.get_data_size()
         self.assertTrue((nTR, nTS) == (800,200))
 
         data_TS = {'input': np.random.rand(300,3)}
-        batcher = Batcher(data_TR=data, data_TS=data_TS)
+        batcher = DataBatcher(data_TR=data, data_TS=data_TS)
         nTR, nTS = batcher.get_data_size()
         self.assertTrue((nTR, nTS) == (1000,300))
 
@@ -28,7 +33,7 @@ class TestBatcher(unittest.TestCase):
 
         data = {'input': np.random.rand(1000,3)}
         data_TS = {'input': np.random.rand(300,3)}
-        batcher = Batcher(data_TR=data, data_TS=data_TS, batch_size=15, batch_size_TS_mul=2)
+        batcher = DataBatcher(data_TR=data, data_TS=data_TS, batch_size=15, batch_size_TS_mul=2)
         batches_TS =batcher.get_TS_batches()
         self.assertTrue(len(batches_TS)==10)
 
@@ -37,7 +42,7 @@ class TestBatcher(unittest.TestCase):
             'test_A': {'input': np.random.rand(300,3)},
             'test_B': {'input': np.random.rand(200,3)},
         }
-        batcher = Batcher(data_TR=data, data_TS=data_TS, batch_size=10, batch_size_TS_mul=2)
+        batcher = DataBatcher(data_TR=data, data_TS=data_TS, batch_size=10, batch_size_TS_mul=2)
         nTR, nTS = batcher.get_data_size()
         self.assertTrue((nTR, nTS) == (1000,500))
         batches_TS = batcher.get_TS_batches('test_B')
@@ -58,7 +63,7 @@ class TestBatcher(unittest.TestCase):
 
             data = {'samples':samples}
 
-            batcher = Batcher(data_TR=data, batch_size=batch_size, batching_type=btype)
+            batcher = DataBatcher(data_TR=data, batch_size=batch_size, batching_type=btype)
 
             sL = []
             n_b = 0
@@ -88,13 +93,13 @@ class TestBatcher(unittest.TestCase):
 
         for batching_type in ['random','random_cov']:
 
-            batcher = Batcher(data, batch_size=b_size, batching_type=batching_type)
+            batcher = DataBatcher(data, batch_size=b_size, batching_type=batching_type)
             sA = []
             while len(sA) < 10000:
                 sA += batcher.get_batch()['samples'].tolist()
                 np.random.seed(len(sA))
 
-            batcher = Batcher(data, batch_size=b_size, batching_type=batching_type)
+            batcher = DataBatcher(data, batch_size=b_size, batching_type=batching_type)
             sB = []
             while len(sB) < 10000:
                 sB += batcher.get_batch()['samples'].tolist()
@@ -107,3 +112,40 @@ class TestBatcher(unittest.TestCase):
 
             print(f'seed is fixed for {batching_type}: {seed_is_fixed}!')
             self.assertTrue(seed_is_fixed)
+
+
+class TestFilesBatcher(unittest.TestCase):
+
+    def test_base(self):
+
+        n_files = 6
+        nf_samples = 50000
+        batch_size = 1000
+
+        def chunk_builder(file:str):
+            return r_pickle(file)
+
+        print('Preparing data files for FilesBatcher ..')
+        prep_folder(BATCHER_DATA_DIR, flush_non_empty=True)
+        for n in range(n_files):
+            data = {
+                'x':    np.random.rand(nf_samples,1000),
+                'y':    np.arange(nf_samples) + n*nf_samples,
+            }
+            w_pickle(data, f'{BATCHER_DATA_DIR}/f{n}.npp')
+
+        fb = FilesBatcher(
+            data_files=     [f'{BATCHER_DATA_DIR}/{f}' for f in list_dir(BATCHER_DATA_DIR)['files']],
+            chunk_builder=  chunk_builder,
+            batch_size=     batch_size,
+            loglevel=       10)
+
+        ys = []
+        for _ in range(int(n_files*nf_samples/batch_size)):
+            batch = fb.get_batch()
+            ys += batch['y'].tolist()
+
+        print(len(ys), len(set(ys)))
+        self.assertTrue(len(set(ys)) == n_files * nf_samples)
+
+        fb.exit()

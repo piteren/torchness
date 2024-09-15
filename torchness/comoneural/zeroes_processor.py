@@ -44,13 +44,13 @@ class ZeroesProcessor:
         if step is None:
             step = self.step
 
-        if type(zeroes) is list:
-            zeroes = ZeroesProcessor._extract_TNS_from(zeroes)
-            if not zeroes:
-                return iv_nane
-            zeroes = torch.cat(zeroes)
-
         with torch.no_grad():
+
+            if type(zeroes) is list:
+                zeroes = ZeroesProcessor._extract_TNS_from(zeroes)
+                if not zeroes:
+                    return iv_nane
+                zeroes = torch.cat(zeroes)
 
             self.single.append(torch.mean(zeroes, dtype=torch.float32))
 
