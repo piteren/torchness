@@ -62,23 +62,24 @@ class BaseBatcher(ABC):
 
         self.btype = batching_type
 
-        # INFO: here first chunk is loaded
-        self._data_TR = self.load_data_TR_chunk()
-        self._keys = sorted(list(self._data_TR.keys()))
-        self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
-
-        if data_TS and type(list(data_TS.values())[0]) is not dict:
-            data_TS = {self.default_TS_name: data_TS}
-        self._data_TS: Dict[str,Dict[str,NPL]] = data_TS
-        self._data_TS_len = sum([self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]) if self._data_TS else 0
         self._TS_batches = {}
-
         self._batch_size = 0
         self.set_batch_size(batch_size)
         self._batch_size_TS_mul = batch_size_TS_mul
 
         self._ixmap = np.asarray([], dtype=int)
         self._ixmap_pointer = 0
+
+        self._data_TR = {}
+        self._keys = []
+        self._data_TR_len = None
+        # INFO: here first chunk is loaded
+        self._get_next_chunk_and_extend_ixmap()
+
+        if data_TS and type(list(data_TS.values())[0]) is not dict:
+            data_TS = {self.default_TS_name: data_TS}
+        self._data_TS: Dict[str,Dict[str,NPL]] = data_TS
+        self._data_TS_len = sum([self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]) if self._data_TS else 0
 
         self.logger.info(f'*** Batcher *** initialized, batch size: {batch_size}')
         self.logger.info(f' > data_TR_len:{self._data_TR_len} - first chunk')
@@ -96,6 +97,9 @@ class BaseBatcher(ABC):
     def _get_next_chunk_and_extend_ixmap(self):
 
         chunk_next = self.load_data_TR_chunk()
+        # set it with first chunk
+        if not self._keys:
+            self._keys = sorted(list(chunk_next.keys()))
         chunk_next_len = chunk_next[self._keys[0]].shape[0]
 
         _ixmap_new = None
@@ -140,8 +144,6 @@ class BaseBatcher(ABC):
         self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
 
     def set_batch_size(self, bs:int):
-        if bs > self._data_TR_len:
-            raise BatcherException('ERR: cannot set batch size > TR data!')
         self._batch_size = bs
         self._TS_batches = {}
 
