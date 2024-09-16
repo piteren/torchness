@@ -91,27 +91,25 @@ class TestDataBatcher(unittest.TestCase):
 
         data = {'samples':samples}
 
-        for batching_type in ['random','random_cov']:
+        batcher = DataBatcher(data, batch_size=b_size, batching_type='random')
+        sA = []
+        while len(sA) < 10000:
+            sA += batcher.get_batch()['samples'].tolist()
+            np.random.seed(len(sA))
 
-            batcher = DataBatcher(data, batch_size=b_size, batching_type=batching_type)
-            sA = []
-            while len(sA) < 10000:
-                sA += batcher.get_batch()['samples'].tolist()
-                np.random.seed(len(sA))
+        batcher = DataBatcher(data, batch_size=b_size, batching_type='random')
+        sB = []
+        while len(sB) < 10000:
+            sB += batcher.get_batch()['samples'].tolist()
+            np.random.seed(10000000-len(sB))
 
-            batcher = DataBatcher(data, batch_size=b_size, batching_type=batching_type)
-            sB = []
-            while len(sB) < 10000:
-                sB += batcher.get_batch()['samples'].tolist()
-                np.random.seed(10000000-len(sB))
+        seed_is_fixed = True
+        for ix in range(len(sA)):
+            if sA[ix] != sB[ix]:
+                seed_is_fixed = False
 
-            seed_is_fixed = True
-            for ix in range(len(sA)):
-                if sA[ix] != sB[ix]:
-                    seed_is_fixed = False
-
-            print(f'seed is fixed for {batching_type}: {seed_is_fixed}!')
-            self.assertTrue(seed_is_fixed)
+        print(f'seed is fixed: {seed_is_fixed}!')
+        self.assertTrue(seed_is_fixed)
 
 
 class TestFilesBatcher(unittest.TestCase):

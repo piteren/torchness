@@ -11,8 +11,7 @@ from torchness.types import ARR, TNS, NPL
 
 BATCHING_TYPES = (
     'base',         # prepares batches in order of given data
-    'random',       # basic random sampling
-    'random_cov',   # random sampling with full coverage of data (default)
+    'random',       # random sampling with full coverage of data (default)
 )
 
 
@@ -44,7 +43,7 @@ class BaseBatcher(ABC):
             data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
             batch_size: int=            16,
             batch_size_TS_mul: int=     2,      # VL & TS batch_size multiplier
-            batching_type: str=         'random_cov',
+            batching_type: str=         'random',
             seed=                       123,
             logger=                     None,
             loglevel=                   20,
@@ -95,7 +94,7 @@ class BaseBatcher(ABC):
     def _get_next_chunk_and_extend_ixmap(self):
 
         chunk_next = self.load_data_TR_chunk()
-        # set it with first chunk
+        # set it with the first chunk
         if not self._keys:
             self._keys = sorted(list(chunk_next.keys()))
         chunk_next_len = chunk_next[self._keys[0]].shape[0]
@@ -108,12 +107,8 @@ class BaseBatcher(ABC):
         if self.btype == 'random':
             _ixmap_new = self.rng.choice(
                 a=          chunk_next_len,
-                size=       self._batch_size,
+                size=       chunk_next_len,
                 replace=    False)
-
-        if self.btype == 'random_cov':
-            _ixmap_new = np.arange(chunk_next_len)
-            self.rng.shuffle(_ixmap_new)
 
         ### tries to concat left data with new chunk, only supported for ARR and TNS in chunks
 

@@ -762,7 +762,7 @@ class MOTorch(ParaSave):
             data_TS=        data_TS,
             split_factor=   split_factor,
             batch_size=     self.batch_size,
-            batching_type=  'random_cov',
+            batching_type=  'random',
             seed=           self.seed,
             logger=         get_child(self._log, 'Batcher'))
 
