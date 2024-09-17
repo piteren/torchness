@@ -93,6 +93,8 @@ class BaseBatcher(ABC):
 
     def _get_next_chunk_and_extend_ixmap(self):
 
+        stime = time.time()
+
         chunk_next = self.load_data_TR_chunk()
         # set it with the first chunk
         if not self._keys:
@@ -135,6 +137,8 @@ class BaseBatcher(ABC):
 
         self._data_TR = chunk_next
         self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
+
+        self.logger.debug(f'>> FilesBatcher._get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
 
     def get_batch(self) -> Dict[str,NPL]:
 
@@ -286,26 +290,32 @@ class FilesBatcher(BaseBatcher):
 
         while True:
 
+            stime = time.time()
             msg = self.q_to_loader.get()
+            self.logger.debug(f'>> loader thread waited {time.time() - stime:.2f}sec for a new task (msg)')
 
             if msg == 'load':
+
+                stime = time.time()
+
                 file = self._data_files.pop(0)
                 self._data_files.append(file)
                 self.logger.debug(f'loader loads file: {file}')
     
                 _data = self._chunk_builder(file=file)
                 self._data_chunks.append(_data)
-                self.logger.debug(f'loader added chunk of data from file: {file}')
+                self.logger.debug(f'>> loader added chunk of data from file: {file}, thread took {time.time()-stime:.2f}sec')
 
             if msg == 'exit':
                 break
 
     def load_data_TR_chunk(self) -> Dict[str,NPL]:
+        stime = time.time()
         while True:
             if self._data_chunks:
                 data = self._data_chunks.pop(0)
                 self.q_to_loader.put('load')
-                self.logger.debug('loaded new chunk of data')
+                self.logger.debug(f'>> FilesBatcher.load_data_TR_chunk() took {time.time() - stime:.2f}sec')
                 return data
             time.sleep(1)
 
