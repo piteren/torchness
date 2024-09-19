@@ -11,9 +11,9 @@ from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
 from torchness.comoneural.batcher import DataBatcher
-from torchness.types import TNS, DTNS, NUM, NPL
+from torchness.base import TNS, DTNS, NUM, NPL
 from torchness.devices import get_devices
-from torchness.base_elements import mrg_ckpts
+from torchness.ckpt import mrg_ckpts
 from torchness.scaled_LR import ScaledLR
 from torchness.grad_clipping import GradClipperMAVG
 from torchness.tbwr import TBwr

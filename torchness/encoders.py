@@ -1,8 +1,8 @@
 import torch
 from typing import Optional, Tuple, Union
 
-from torchness.types import ACT, INI, TNS, DTNS
-from torchness.base_elements import bert_initializer, my_initializer, TorchnessException
+from torchness.base import ACT, INI, TNS, DTNS, TorchnessException
+from torchness.initialize import bert_initializer, my_initializer
 from torchness.layers import LayDense, TF_Dropout, LayConv1D, LayRES, zeroes
 
 

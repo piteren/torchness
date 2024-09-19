@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Optional, Union
 from tqdm import tqdm
 
-from torchness.types import TNS, DTNS, INI
+from torchness.base import INI, TNS, DTNS
 from torchness.motorch import Module, MOTorch
 from torchness.models.text_embbeder import TextEMB
 from torchness.models.simple_feats_classifier import SFeatsCSF

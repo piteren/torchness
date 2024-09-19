@@ -3,8 +3,7 @@ from pypaq.lipytools.pylogger import get_pylogger
 import torch
 from typing import Optional, Union, Iterator
 
-from torchness.types import NUM, NPL, TNS
-from torchness.base_elements import TorchnessException
+from torchness.base import TNS, NUM, NPL, TorchnessException
 
 
 def clip_grad_norm_(

@@ -2,8 +2,8 @@ import torch
 from typing import Tuple, Optional
 
 from torchness.motorch import Module
-from torchness.types import TNS, DTNS, INI
-from torchness.base_elements import my_initializer
+from torchness.base import INI, TNS, DTNS
+from torchness.initialize import my_initializer
 from torchness.layers import LayDense
 from torchness.encoders import EncDRT
 

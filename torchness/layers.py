@@ -2,10 +2,8 @@ import math
 import torch
 from typing import Optional
 
-from torchness.base_elements import TorchnessException
-from torchness.types import ACT, INI, TNS
-from torchness.base_elements import my_initializer
-
+from torchness.base import ACT, INI, TNS, TorchnessException
+from torchness.initialize import my_initializer
 
 
 class LayDense(torch.nn.Linear):

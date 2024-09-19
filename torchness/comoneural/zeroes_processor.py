@@ -1,7 +1,7 @@
 import torch
 from typing import Optional, Dict, List, Union
 
-from torchness.types import TNS, NUM
+from torchness.base import TNS, NUM
 
 
 class ZeroesProcessor:

@@ -1,7 +1,7 @@
 import torch
 import unittest
 
-from torchness.base_elements import TorchnessException
+from torchness.base import TorchnessException
 from torchness.encoders import LayBlockDRT, EncDRT, LayBlockCNN, EncCNN, LayBlockTNS, EncTNS
 
 

@@ -7,7 +7,7 @@ import time
 import torch
 from typing import Optional, Union, List
 
-from torchness.base_elements import TorchnessException
+from torchness.base import TorchnessException
 
 
 """
@@ -180,11 +180,15 @@ def get_devices(
 
 def mask_cuda(ids: Optional[List[int] or int]=None):
     """ masks GPUs from given list of ids or single one """
-    if ids is None: ids = []
-    if type(ids) is int: ids = [ids]
+    if ids is None:
+        ids = []
+    if type(ids) is int:
+        ids = [ids]
     mask = ''
-    for id in ids: mask += f'{int(id)},'
-    if len(mask) > 1: mask = mask[:-1]
+    for i in ids:
+        mask += f'{int(i)},'
+    if len(mask) > 1:
+        mask = mask[:-1]
     os.environ["CUDA_VISIBLE_DEVICES"] = mask
 
 
@@ -213,20 +217,20 @@ def monitor(pause:float=0.1, print_n:int=10):
         s = '*** GPUs monitor: '
         for d in devs:
 
-            id = d.id
+            _id = d.id
             load = int(d.load*100)
             mem = int(d.memoryUsed)
 
-            if peaks_load[id] < load:
-                peaks_load[id] = load
+            if peaks_load[_id] < load:
+                peaks_load[_id] = load
 
-            if peaks_mem[id] < mem:
-                peaks_mem[id] = mem
+            if peaks_mem[_id] < mem:
+                peaks_mem[_id] = mem
 
-            s += f'{id}:{load}%/{int(mem)}MB '
+            s += f'{_id}:{load}%/{int(mem)}MB '
         s += f' >>> peak: '
-        for id in peaks_load:
-            s += f'{id}:{peaks_load[id]}%/{peaks_mem[id]}MB '
+        for _id in peaks_load:
+            s += f'{_id}:{peaks_load[_id]}%/{peaks_mem[_id]}MB '
 
 
         time.sleep(pause)
