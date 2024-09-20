@@ -64,18 +64,16 @@ def brier_score(probs:TNS, action_sampled:TNS, action_target:TNS):
     return torch.pow(probs[range(len(action_target)), action_target] - y, 2).mean()
 
 
-def mean_square_error(logits, probs_target):
-    """ MSE of N-dim logits->probs and N-dim probs_target """
-    probs = torch.nn.functional.softmax(logits, dim=-1)
-    return torch.nn.functional.mse_loss(input=probs, target=probs_target)
+def mean_square_error(pred:TNS, target:TNS):
+    """ MSE of N-dim pred and N-dim target """
+    return torch.nn.functional.mse_loss(input=pred, target=target)
 
 
-def diff_avg_max(logits:TNS, probs_target:TNS) -> Tuple[TNS,TNS,TNS]:
-    """ differences (similar to MSE) of N-dim logits->probs and N-dim probs_target
+def diff_avg_max(pred:TNS, target:TNS) -> Tuple[TNS,TNS,TNS]:
+    """ differences (similar to MSE) of N-dim pred and N-dim target
     returns:
     probs diff avg
     probs diff max avg
     probs diff max """
-    probs = torch.nn.functional.softmax(logits, dim=-1)
-    diff = torch.abs(probs - probs_target)
+    diff = torch.abs(pred - target)
     return diff.mean(), diff.max(dim=-1)[0].mean(), diff.max()
