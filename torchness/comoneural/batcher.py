@@ -10,7 +10,7 @@ from typing import Dict, Optional, Tuple, List, Union
 from torchness.base import ARR, TNS, NPL
 
 BATCHING_TYPES = (
-    'base',         # prepares batches in order of given data
+    'base',         # prepares batches (indexes) in order of given data (chunk)
     'random',       # random sampling with full coverage of data (default)
 )
 
