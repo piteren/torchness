@@ -78,7 +78,7 @@ class BaseBatcher(ABC):
         self._data_TS_len = sum([self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]) if self._data_TS else 0
         self._TS_batches = {}
 
-        self.logger.info(f'*** Batcher *** initialized, batch size: {batch_size}')
+        self.logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
         self.logger.info(f' > data_TR_len:{self._data_TR_len} - first chunk')
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
             self.logger.info(f' > data_TS names: {list(self._data_TS.keys())}')
@@ -138,7 +138,7 @@ class BaseBatcher(ABC):
         self._data_TR = chunk_next
         self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
 
-        self.logger.debug(f'>> FilesBatcher._get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
+        self.logger.debug(f'>> _get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
 
     def get_batch(self) -> Dict[str,NPL]:
 
@@ -273,7 +273,7 @@ class FilesBatcher(BaseBatcher):
             raise BatcherException(f'data_files is empty: {data_files}')
 
         self._chunk_builder = chunk_builder
-        self.logger.info(f'*** FilesBatcher *** initializes with {len(self._data_files)} files (TR chunks).')
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files)} files (TR chunks).')
 
         self._data_chunks = []
         self.q_to_loader = queue.Queue()
@@ -313,12 +313,11 @@ class FilesBatcher(BaseBatcher):
         stime = time.time()
         while True:
             if self._data_chunks:
-                self.logger.debug(f'>> FilesBatcher.load_data_TR_chunk() waited '
-                                  f'{time.time() - stime:.2f}sec for a new data chunk')
+                _waited = time.time() - stime
                 data = self._data_chunks.pop(0)
                 self.q_to_loader.put('load') # put next task immediately
-                self.logger.debug(f'>> FilesBatcher.load_data_TR_chunk() took '
-                                  f'{time.time() - stime:.2f}sec in total')
+                self.logger.debug(f'>> load_data_TR_chunk() waited {_waited:.2f}sec '
+                                  f'for a new data chunk, TOT:{time.time() - stime:.2f}sec')
                 return data
             time.sleep(1)
 
