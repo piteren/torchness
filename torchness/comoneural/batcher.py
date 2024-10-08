@@ -280,7 +280,7 @@ class FilesBatcher(BaseBatcher):
 
         self.loader_thread = threading.Thread(target=self._loader_loop)
         self.loader_thread.start()
-        self.q_to_loader.put('load')
+        self.q_to_loader.put('load') # put the first task
 
         super().__init__(logger=self.logger, **kwargs)
         
@@ -313,9 +313,12 @@ class FilesBatcher(BaseBatcher):
         stime = time.time()
         while True:
             if self._data_chunks:
+                self.logger.debug(f'>> FilesBatcher.load_data_TR_chunk() waited '
+                                  f'{time.time() - stime:.2f}sec for a new data chunk')
                 data = self._data_chunks.pop(0)
-                self.q_to_loader.put('load')
-                self.logger.debug(f'>> FilesBatcher.load_data_TR_chunk() took {time.time() - stime:.2f}sec')
+                self.q_to_loader.put('load') # put next task immediately
+                self.logger.debug(f'>> FilesBatcher.load_data_TR_chunk() took '
+                                  f'{time.time() - stime:.2f}sec in total')
                 return data
             time.sleep(1)
 
