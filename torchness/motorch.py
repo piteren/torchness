@@ -330,9 +330,8 @@ class MOTorch(ParaSave):
                 self._log.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
 
         # set seed in all possible areas (https://pytorch.org/docs/stable/notes/randomness.html)
-
         torch.manual_seed(self.seed)
-        torch.cuda.manual_seed(self.seed)
+        torch.cuda.manual_seed_all(self.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
