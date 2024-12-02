@@ -1,17 +1,17 @@
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.lipytools.pylogger import get_pylogger
 import torch
-from typing import Optional, Union, Iterator
+from typing import Optional, Union, Iterator, Dict
 
 from torchness.base import TNS, NUM, NPL, TorchnessException
 
 
 def clip_grad_norm_(
         parameters: Union[NPL, Iterator[TNS]],
-        norm_type: NUM=             2.0,
         max_norm: Optional[NUM]=    None,
+        norm_type: NUM=             2.0,
         do_clip: bool=              True,  # disables clipping (just GN calculations)
-) -> NUM:
+) -> float:
     """ computes and returns gradients norm (input) of given parameters,
     then optionally clips (scales) gradients,
     copied & refactored from torch.nn.utils.clip_grad.py """
@@ -42,7 +42,7 @@ def clip_grad_norm_(
         for p in parameters_grad:
             p.grad.detach().mul_(clip_coef_clamped.to(p.grad.device))
 
-    return total_norm
+    return total_norm.item()
 
 
 class GradClipperMAVG:
@@ -74,9 +74,9 @@ class GradClipperMAVG:
         self.do_clip = do_clip
 
     # clip & update parameters
-    def clip(self):
+    def clip(self) -> Dict[str,float]:
 
-        gg_norm_clip = self.gg_norm_clip
+        gg_norm_clip = self.mavg()
         self.logger.debug(f'gg_norm_clip: {gg_norm_clip}')
 
         gg_norm = clip_grad_norm_(
@@ -90,10 +90,4 @@ class GradClipperMAVG:
             mavg_update = self.max_clip
         self.mavg.upd(mavg_update)
 
-        return {
-            'gg_norm':      gg_norm,
-            'gg_norm_clip': gg_norm_clip}
-
-    @property
-    def gg_norm_clip(self):
-        return self.mavg()
+        return {'gg_norm':gg_norm, 'gg_norm_clip':gg_norm_clip}
