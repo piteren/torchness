@@ -26,6 +26,7 @@ devices: DevicesTorchness - parameter type
     None                                (NoneType)               single CPU core
     float                               (float)                  (0.0;1.0> - factor of system CPU cores
     'all'                               (str)                    all CPU cores
+    'cpu'                               (str)                    single CPU core
     
     ### ***************************************************************************************** PyTorch representation
     'cpu'                               (str)                    PyTorch CPU
