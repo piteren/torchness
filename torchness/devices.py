@@ -163,16 +163,11 @@ def get_devices(
         loglevel=                   20,
 ) -> List[Union[int,None,str]]:
     """ resolves representation given with devices (DevicesTorchness) """
-
-    if not logger:
-        logger = get_pylogger(name='get_devices', level=loglevel)
-
     devices_base = _get_devices_torchness(
         devices=    devices,
         mem_free=   mem_free,
         load_max=   load_max,
-        logger=     logger)
-
+        logger=     logger or get_pylogger(name='get_devices', level=loglevel))
     d = [f'cuda:{dev}' if type(dev) is int else 'cpu' for dev in devices_base] if torch_namespace else devices_base
     if not d and eventually_cpu:
         d = ['cpu']

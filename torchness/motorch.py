@@ -10,7 +10,7 @@ from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
-from torchness.comoneural.batcher import DataBatcher
+from torchness.batcher import DataBatcher
 from torchness.base import TNS, DTNS, NUM, NPL
 from torchness.devices import get_devices
 from torchness.ckpt import mrg_ckpts
@@ -181,7 +181,7 @@ class MOTorch(ParaSave):
 
         # TODO: temporary, delete later
         if 'devices' in kwargs:
-            raise MOTorchException('\'devices\' param is no more supported by MOTorch, please use \'device\'')
+            raise MOTorchException('\'devices\' param is not supported by MOTorch, please use \'device\'')
 
         if not (name or module_type):
             raise MOTorchException('name OR module_type must be given!')
@@ -243,24 +243,7 @@ class MOTorch(ParaSave):
         module_type = module_type_saved or module_type
         self._log.info(f'> {self.name} module_type: {module_type.__name__}')
 
-        ### manage params from self.module_type.__init__
-
         _module_init_def = get_class_init_params(module_type)['with_defaults'] # defaults of self.module_type.__init__
-
-        """
-        # special case of params: [device, dtype] <- those will be set with values prepared by MOTorch below, BUT...
-        _override_in_module_for_none = {
-            'device':   self.MOTORCH_DEFAULTS['device'],
-            'dtype':    self.MOTORCH_DEFAULTS['dtype']}
-
-        # ..EXCEPT a case when are set in self.module_type.__init__ to other value than None
-        remove_from_override = []
-        for param in _override_in_module_for_none:
-            if param in _module_init_def and _module_init_def[param] is not None:
-                remove_from_override.append(param)
-        for param in remove_from_override:
-            _override_in_module_for_none.pop(param)
-        """
 
         ### update in proper order
 
@@ -268,7 +251,6 @@ class MOTorch(ParaSave):
         self._point.update(ParaSave.PARASAVE_DEFAULTS)
         self._point.update(self.MOTORCH_DEFAULTS)
         self._point.update(_module_init_def)
-        #self._point.update(_override_in_module_for_none)
         self._point.update(point_saved)
         self._point.update(kwargs)
         self._point["module_type"] = module_type
@@ -604,7 +586,7 @@ class MOTorch(ParaSave):
 
         # to properly start grad clipping after load
         self['gc_first_avg'] = False
-        self['gc_start_val'] = float(self._grad_clipper.gg_norm_clip)
+        self['gc_start_val'] = float(self._grad_clipper.mavg())
 
         self.save_point()
         self.save_ckpt()

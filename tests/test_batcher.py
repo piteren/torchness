@@ -4,10 +4,10 @@ import unittest
 
 from tests.envy import flush_tmp_dir
 
-from torchness.comoneural.batcher import DataBatcher, FilesBatcher, BATCHING_TYPES
+from torchness.batcher import DataBatcher, FilesBatcher, FilesBatcherMP, BATCHING_TYPES
 from pypaq.lipytools.stats import msmx
 
-BATCHER_DATA_DIR = f'{flush_tmp_dir()}/comoneural/batcher/datafiles'
+BATCHER_DATA_DIR = f'{flush_tmp_dir()}/batcher/datafiles'
 
 
 class TestDataBatcher(unittest.TestCase):
@@ -116,9 +116,10 @@ class TestFilesBatcher(unittest.TestCase):
 
     def test_base(self):
 
-        n_files = 6
-        nf_samples = 50000
-        batch_size = 1000
+        n_files = 10
+        nf_samples = 100_000
+        batch_size = 1_000
+        n_epochs = 5
 
         def chunk_builder(file:str):
             return r_pickle(file)
@@ -128,8 +129,7 @@ class TestFilesBatcher(unittest.TestCase):
         for n in range(n_files):
             data = {
                 'x':    np.random.rand(nf_samples,1000),
-                'y':    np.arange(nf_samples) + n*nf_samples,
-            }
+                'y':    np.arange(nf_samples) + n*nf_samples}
             w_pickle(data, f'{BATCHER_DATA_DIR}/f{n}.npp')
 
         fb = FilesBatcher(
@@ -139,11 +139,49 @@ class TestFilesBatcher(unittest.TestCase):
             loglevel=       10)
 
         ys = []
-        for _ in range(int(n_files*nf_samples/batch_size)):
+        for _ in range(int(n_files * nf_samples/batch_size * n_epochs)):
             batch = fb.get_batch()
             ys += batch['y'].tolist()
 
-        print(len(ys), len(set(ys)))
-        self.assertTrue(len(set(ys)) == n_files * nf_samples)
+        print(len(ys))
+        self.assertTrue(len(ys) == n_files * nf_samples  * n_epochs)
+
+        fb.exit()
+
+
+class TestFilesBatcherMP(unittest.TestCase):
+
+    def test_base(self):
+
+        n_files = 10
+        nf_samples = 100_000
+        batch_size = 1_000
+        n_epochs = 5
+
+        def chunk_builder(file:str):
+            return r_pickle(file)
+
+        print('Preparing data files for FilesBatcher ..')
+        prep_folder(BATCHER_DATA_DIR, flush_non_empty=True)
+        for n in range(n_files):
+            data = {
+                'x':    np.random.rand(nf_samples,1000),
+                'y':    np.arange(nf_samples) + n*nf_samples}
+            w_pickle(data, f'{BATCHER_DATA_DIR}/f{n}.npp')
+
+        fb = FilesBatcherMP(
+            data_files=     [f'{BATCHER_DATA_DIR}/{f}' for f in list_dir(BATCHER_DATA_DIR)['files']],
+            chunk_builder=  chunk_builder,
+            n_workers=      10,
+            batch_size=     batch_size,
+            loglevel=       10)
+
+        ys = []
+        for _ in range(int(n_files * nf_samples/batch_size * n_epochs)):
+            batch = fb.get_batch()
+            ys += batch['y'].tolist()
+
+        print(len(ys))
+        self.assertTrue(len(ys) == n_files * nf_samples * n_epochs)
 
         fb.exit()

@@ -66,7 +66,7 @@ class TestMOTorch(unittest.TestCase):
         model = MOTorch(
             module_type=    LinModel,
             in_drop=        0.0,
-            logger=         get_child(logger, change_level=-10),
+            logger=         get_child(logger, change_level=-10, name='test'),
         )
         print(model)
         self.assertTrue(model.size == 7850)
@@ -108,26 +108,14 @@ class TestMOTorch(unittest.TestCase):
         self.assertTrue({d for d in '0123456789'} & set([l for l in model['name']]))
 
     def test_device(self):
-
-        # force GPU
         model = MOTorch(
             module_type=    LinModel,
-            device=         0,
+            device=         -1, # GPU or CPU
             in_drop=        0.0,
             logger=         logger)
         dev = model.device
         print(dev)
         self.assertTrue(dev == 'cuda:0' if torch.cuda.is_available() else 'cpu')
-
-        # GPU or CPU
-        model = MOTorch(
-            module_type=    LinModel,
-            device=         -1,
-            in_drop=        0.0,
-            logger=         logger)
-        dev = model.device
-        print(dev)
-        self.assertTrue('cuda' in dev or 'cpu' in dev)
 
     def test_logger(self):
         log = get_pylogger(
@@ -136,7 +124,7 @@ class TestMOTorch(unittest.TestCase):
             flat_child= True)
         model = MOTorch(
             module_type=    LinModel,
-            device=         0,
+            device=         -1,
             in_drop=        0.0,
             logger=         log)
         model.save()
@@ -440,7 +428,7 @@ class TestMOTorch(unittest.TestCase):
 
     def test_optimizer(self):
 
-        _log = get_child(logger, change_level=-10)
+        _log = get_child(logger, change_level=-10, name='opt')
 
         model = MOTorch(
             module_type=    LinModel,

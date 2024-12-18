@@ -1,5 +1,6 @@
 GPUtil
 numpy
+ompr
 pillow
 pypaq
 tqdm

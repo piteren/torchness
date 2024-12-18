@@ -117,6 +117,8 @@ class TestDevices(unittest.TestCase):
         print(devices)
         devices = get_devices(devices=[0,1])
         print(devices)
+        devices = get_devices(devices=-1, eventually_cpu=True)
+        print(devices)
         devices = get_devices(devices=[], mem_free=24000)
         print(devices)
 

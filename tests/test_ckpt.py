@@ -1,7 +1,8 @@
 import torch
 import unittest
 
-from torchness.base_elements import my_initializer, mrg_ckpts, ckpt_nfo, select_with_indices, reinforced_cross_entropy
+from torchness.ckpt import mrg_ckpts, ckpt_nfo
+
 from torchness.motorch import Module, MOTorch
 from torchness.layers import LayDense
 
@@ -45,57 +46,6 @@ class LinModel(Module):
         return out
 
 
-class TestBaseElements(unittest.TestCase):
-
-    def test_my_initializer(self):
-        tns = torch.zeros(1000)
-        #print(tns)
-        my_initializer(tns, std=0.1)
-        #print(tns)
-        print(tns.numpy().std())
-        self.assertTrue(0.08 < tns.numpy().std() < 0.12)
-
-    def test_select_with_indices(self):
-
-        source = torch.rand(4,3)
-        print(source)
-        indices = [1,0,2,1]
-        indices = torch.tensor(indices)
-        print(indices)
-        swi = select_with_indices(source,indices)
-        print(swi)
-
-        _swi = source[range(len(indices)), indices]
-        print(_swi)
-
-        self.assertTrue(torch.equal(swi,_swi))
-
-    def test_reinforced_cross_entropy(self):
-
-        logits = torch.rand(5,5)
-        logits -= 0.5
-        logits *=5
-        print(f'logits: {logits}')
-        probs = torch.softmax(logits, dim=-1)
-        print(f'probs: {probs}, sum:{torch.sum(probs, dim=-1)}')
-
-        target = torch.randint(5,(5,))
-        lf = torch.nn.CrossEntropyLoss(reduction='none')
-        ce_loss = lf(logits,target,)
-        probs_target = probs[range(len(target)), target]
-        print(f'probs_target: {probs_target}')
-        print(f'cross entropy loss: {ce_loss}, ({-torch.log(probs_target)})')
-
-        scale = (torch.rand(5) > 0.5).to(float)*2-1
-        print(f'scale: {scale}')
-        sce = reinforced_cross_entropy(
-            labels=     target,
-            scale=      scale,
-            logits=     logits)
-        print(f'sce: {sce}')
-
-
-
 class TestCheckpoints(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -125,5 +75,3 @@ class TestCheckpoints(unittest.TestCase):
         )
 
         ckpt_nfo(f'{MOTORCH_DIR}/ckptM.pt')
-
-

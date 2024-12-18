@@ -18,7 +18,7 @@ class SFeatsCSF(Module):
             in_dropout: float=                      0.0,
             n_hidden: int=                          2,
             hidden_width: int=                      12,
-            hidden_drop: float=                     0.0,
+            hidden_dropout: float=                  0.0,
             num_classes: int=                       2,      # output
             lay_norm=                               True,
             do_zeroes: bool=                        True,
@@ -42,7 +42,7 @@ class SFeatsCSF(Module):
             do_scaled_dns=      False,
             activation=         torch.nn.ReLU,
             interlay_dropout=   0.0,
-            lay_dropout=        hidden_drop,
+            lay_dropout=        hidden_dropout,
             res_dropout=        0.0,
             lay_norm=           lay_norm,
             do_zeroes=          do_zeroes,

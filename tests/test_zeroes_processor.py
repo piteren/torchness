@@ -4,8 +4,8 @@ import unittest
 
 from tests.envy import flush_tmp_dir
 
-from torchness.types import TNS
-from torchness.comoneural.zeroes_processor import ZeroesProcessor
+from torchness.base import TNS
+from torchness.zeroes_processor import ZeroesProcessor
 from torchness.tbwr import TBwr
 
 BASE_DIR = f'{flush_tmp_dir()}/comoneural/zeroes'
