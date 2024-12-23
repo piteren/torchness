@@ -29,6 +29,16 @@ def normalize_logits(logits:TNS) -> TNS:
     # return logits - logits.logsumexp(dim=-1, keepdim=True)
 
 
+def count_model_params(model:torch.nn.Module) -> int:
+    pp = 0
+    for p in list(model.parameters()):
+        nn = 1
+        for s in list(p.size()):
+            nn = nn * s
+        pp += nn
+    return pp
+
+
 ### scores *****************************************************************************************
 
 def cross_entropy_loss(logits:TNS, target:TNS) -> TNS:
