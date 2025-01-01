@@ -214,7 +214,7 @@ class MOTorch(ParaSave):
                 flat_child= flat_child)
         self._log = logger
 
-        self._log.info(f'*** MOTorch : {name} *** initializes..')
+        self._log.info(f'*** MOTorch : {name} *** initializes ..')
         self._log.info(f'> {name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
 
         # init as a ParaSave
@@ -369,7 +369,7 @@ class MOTorch(ParaSave):
 
         # MOTorch by default is not in training mode
         self.train(False)
-        self._log.debug(f'> set {self.name} train.mode to False..')
+        self._log.debug(f'> set {self.name} train.mode to False ..')
 
         # TensorBoard writer
         self._TBwr = tbwr or TBwr(

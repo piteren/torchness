@@ -56,7 +56,7 @@ class TextEMB_MOTorch(MOTorch):
         super().__init__(module_type=module_type, **kwargs)
 
     def get_tokens(self, lines:Union[str, List[str]]) -> Union[List[str], List[List[str]]]:
-        self.logger.info(f'{self.name} prepares tokens for {len(lines)} lines..')
+        self.logger.info(f'{self.name} prepares tokens for {len(lines)} lines ..')
         return self.module.tokenize(lines)
 
     def get_embeddings(
@@ -69,7 +69,7 @@ class TextEMB_MOTorch(MOTorch):
             if self.logger.level < 21 and type(lines) is list and len(lines) > 1000:
                 show_progress_bar = True
 
-        self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines..')
+        self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines ..')
         return self.module.encode(
             texts=              lines,
             device=             self.device, # fixes bug of SentenceTransformers.encode() device placement

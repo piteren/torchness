@@ -83,7 +83,7 @@ class STextCSF_MOTorch(MOTorch):
             show_progress_bar=      'auto',
     ) -> np.ndarray:
         if type(lines) is str: lines = [lines]
-        self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines..')
+        self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines ..')
         if show_progress_bar == 'auto':
             show_progress_bar = self.logger.level < 21 and len(lines) > 1000
         return self.module.encode(
