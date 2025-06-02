@@ -108,7 +108,7 @@ class MOTorch(ParaSave):
     - manages:
         - devices: GPU / CPU with device: DevicesTorchness parameter
         - seed -> guarantees reproducibility
-        - training mode (may be overridden by user)
+        - training mode (can be overridden by user)
         - data format / type preparation (to be compatible with Module)
         - automatic gradient computation switching while inference training
     - implements forward (FWD) call (with __call__)
@@ -262,7 +262,7 @@ class MOTorch(ParaSave):
         ### finally resolve device
 
         # device parameter, may be given to MOTorch in DevicesTorchness type
-        # it needs to be cast to PyTorch namespace here
+        # it is cast to PyTorch namespace here
         self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
         self._log.debug(f'> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(
@@ -613,6 +613,7 @@ class MOTorch(ParaSave):
             save_topdir_src: Optional[str]= None,
             save_topdir_trg: Optional[str]= None,
             save_fn_pfx: Optional[str]=     None,
+            device=                         None,
             logger=                         None,
             loglevel=                       30):
         """ copies full MOTorch folder (POINT & checkpoints) """
@@ -628,7 +629,8 @@ class MOTorch(ParaSave):
             save_topdir_trg=    save_topdir_trg,
             save_fn_pfx=        save_fn_pfx,
             logger=             logger,
-            loglevel=           loglevel)
+            loglevel=           loglevel,
+            device=             device)
 
         cls.copy_checkpoint(
             name_src=           name_src,
