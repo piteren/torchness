@@ -36,7 +36,7 @@ class Module(torch.nn.Module):
 
 
     def forward(self, **kwargs) -> DTNS:
-        """ forward pass (FWD) function
+        """ forward pass (FWD) method
         returned DTNS should have at least 'logits' key
         with logits tensor for proper MOTorch.run_train()
 
@@ -75,7 +75,7 @@ class Module(torch.nn.Module):
 
 
     def loss(self, **kwargs) -> DTNS:
-        """ forward + loss function
+        """ forward + loss method
         returned DTNS should be: .forward() DTNS updated with loss (and optional acc, f1)
 
         exemplary implementation:
