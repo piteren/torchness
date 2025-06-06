@@ -6,7 +6,7 @@ import queue
 import threading
 import time
 import torch
-from typing import Dict, Optional, Tuple, List, Union, Any
+from typing import Dict, Optional, Tuple, List, Union
 
 from torchness.base import ARR, TNS, NPL
 
@@ -346,9 +346,10 @@ class FilesBatcherMP(BaseBatcher):
             self,
             data_files_fp: List[str],
             chunk_builder_class: type(RunningWorker),
-            n_workers: int=     5,
-            logger=             None,
-            loglevel=           20,
+            rww_init_kwargs: Optional[Dict]=    None,
+            n_workers: int=                     5,
+            logger=                             None,
+            loglevel=                           20,
             **kwargs,
     ):
         """
@@ -357,6 +358,8 @@ class FilesBatcherMP(BaseBatcher):
         chunk_builder_class:
             is a class of type RunningWorker, where process accepts file_fp(str)
             and returns a NN ready chunk of data Dict[str,NPL]
+        rww_init_kwargs:
+            chunk_builder_class __init__ kwargs
         n_workers:
             max number of parallel MP workers that will be put into the chunk loading task,
             when average time needed by a worker to load and prepare a single chunk is greater
@@ -372,13 +375,13 @@ class FilesBatcherMP(BaseBatcher):
 
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files (TR chunks).')
 
-        logger_child = get_child(logger=self.logger, name=f'{self.logger.name}_child', change_level=10)
         self.ompr = OMPRunner(
             rww_class=          chunk_builder_class,
+            rww_init_kwargs=    rww_init_kwargs,
             devices=            [None] * n_workers,
             ordered_results=    False,
             rerun_crashed=      False,
-            logger=             logger_child)
+            logger=             get_child(logger=self.logger, change_level=10))
 
         for _ in range(n_workers):
             self._put_next_task_to_ompr()
