@@ -256,18 +256,21 @@ class DataBatcher(BaseBatcher):
 
 
 class FilesBatcher(BaseBatcher):
-    """ FilesBatcher uses thread to load files with TR data in the background """
+    """ FilesBatcher uses threads to load data files in the background.
+    It is designed for cases, where data does is saved in files,
+    fast file read is crucial for the training speed
+    and data does not need any expensive processing before loading into the NN. """
 
     def __init__(
             self,
-            data_files: List[str],
+            data_files_fp: List[str],
             chunk_builder: callable,
             logger=         None,
             loglevel=       20,
             **kwargs,
     ):
         """
-        data_files:
+        data_files_fp:
             list of file paths where data of TR chunks is stored
         chunk_builder(file:str):
             function that should return chunk of data Dict[str,NPL] given file path """
@@ -276,12 +279,12 @@ class FilesBatcher(BaseBatcher):
             name=   f'{self.__class__.__name__}_logger',
             level=  loglevel)
 
-        self._data_files = data_files
-        if not self._data_files:
-            raise BatcherException(f'data_files is empty: {data_files}')
+        self._data_files_fp = data_files_fp
+        if not self._data_files_fp:
+            raise BatcherException(f'data_files_fp is empty: {data_files_fp}')
 
         self._chunk_builder = chunk_builder
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files)} files (TR chunks).')
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files (TR chunks).')
 
         self._data_chunks = []
         self.q_to_loader = queue.Queue()
@@ -306,8 +309,8 @@ class FilesBatcher(BaseBatcher):
 
                 stime = time.time()
 
-                file = self._data_files.pop(0)
-                self._data_files.append(file)
+                file = self._data_files_fp.pop(0)
+                self._data_files_fp.append(file)
 
                 self.logger.debug(f'>> loader starts loading file: {file} ..')
                 _data = self._chunk_builder(file=file)
@@ -335,45 +338,43 @@ class FilesBatcher(BaseBatcher):
 
 
 class FilesBatcherMP(BaseBatcher):
-    """ FilesBatcherMP uses OMPR (subprocesses) to load files with TR data in the background """
+    """ FilesBatcherMP uses subprocesses (OMPR) to load data files in the background.
+    It is designed for cases, where data saved in files needs further processing before loading into NN,
+    and read operations are not critical. """
 
     def __init__(
             self,
-            data_files: List[str],
-            chunk_builder: callable,
-            n_workers: int= 5,
-            logger=         None,
-            loglevel=       20,
+            data_files_fp: List[str],
+            chunk_builder_class: type(RunningWorker),
+            n_workers: int=     5,
+            logger=             None,
+            loglevel=           20,
             **kwargs,
     ):
         """
-        data_files:
+        data_files_fp:
             list of file paths where data of TR chunks is stored
-        chunk_builder(file:str):
-            function that should return chunk of data Dict[str,NPL] given file path
+        chunk_builder_class:
+            is a class of type RunningWorker, where process accepts file_fp(str)
+            and returns a NN ready chunk of data Dict[str,NPL]
         n_workers:
             max number of parallel MP workers that will be put into the chunk loading task,
-            when average time needed by a worker to load single chunk is greater
-            than time of running this chunk with a NN, number of workers > 1 """
+            when average time needed by a worker to load and prepare a single chunk is greater
+            than time of running (training) this chunk with a NN, number of workers > 1 """
 
         self.logger = logger or get_pylogger(
             name=   f'{self.__class__.__name__}_logger',
             level=  loglevel)
 
-        self._data_files = data_files
-        if not self._data_files:
-            raise BatcherException(f'data_files is empty: {data_files}')
+        self._data_files_fp = data_files_fp
+        if not self._data_files_fp:
+            raise BatcherException(f'data_files_fp is empty: {data_files_fp}')
 
-        self._chunk_builder = chunk_builder
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files)} files (TR chunks).')
-
-        class ChunkBuilder(RunningWorker):
-            def process(self, **kwargs) -> Any:
-                return chunk_builder(**kwargs)
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files (TR chunks).')
 
         logger_child = get_child(logger=self.logger, name=f'{self.logger.name}_child', change_level=10)
         self.ompr = OMPRunner(
-            rww_class=          ChunkBuilder,
+            rww_class=          chunk_builder_class,
             devices=            [None] * n_workers,
             ordered_results=    False,
             rerun_crashed=      False,
@@ -385,8 +386,8 @@ class FilesBatcherMP(BaseBatcher):
         super().__init__(logger=self.logger, **kwargs)
 
     def _put_next_task_to_ompr(self):
-        file = self._data_files.pop(0)
-        self._data_files.append(file)
+        file = self._data_files_fp.pop(0)
+        self._data_files_fp.append(file)
         self.ompr.process({'file':file})
 
     def load_data_TR_chunk(self) -> Dict[str,NPL]:
