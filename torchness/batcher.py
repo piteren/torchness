@@ -84,19 +84,19 @@ class BaseBatcher(ABC):
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
             self.logger.info(f' > data_TS names: {list(self._data_TS.keys())}')
         self.logger.info(f' > data_TS_len: {self._data_TS_len}')
-        self.logger.debug('> Batcher keys:')
+        self.logger.debug('> Batcher (batch) keys:')
         for k in self._keys:
             self.logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
 
     @abstractmethod
     def load_data_TR_chunk(self) -> Dict[str,NPL]:
         """ should return a chunk of training data,
-        it may be full epoch or just next part of it """
+        it may be a full epoch or just a next part of it """
         pass
 
     def _get_next_chunk_and_extend_ixmap(self):
         """ this method is called when Batcher has not enough TR data (self._data_TR),
-        to be precise: when self._ixmap is small enough """
+        precisely: when self._ixmap is small enough """
 
         stime = time.time()
 
@@ -126,17 +126,17 @@ class BaseBatcher(ABC):
         if _ixmap_left_size:
 
             conc_func = None
-            if type(chunk_next[self._keys[0]]) is ARR:
+            _cdt = type(chunk_next[self._keys[0]])
+            if _cdt is ARR:
                 conc_func = np.concatenate
-            if type(chunk_next[self._keys[0]]) is TNS:
+            if _cdt is TNS:
                 conc_func = torch.cat
+            if conc_func is None:
+                raise BatcherException(f'wrong data type in chunk!\n{_cdt}')
 
-            if conc_func:
-                for k in self._keys:
-                    chunk_next[k] = conc_func([self._data_TR[k][_ixmap_left], chunk_next[k]])
-                _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
-            else:
-                self.logger.warning(f'Batcher was unable to use left {_ixmap_left_size} samples from chunk, try using np.ndarray or torch.Tensor with TR data')
+            for k in self._keys:
+                chunk_next[k] = conc_func([self._data_TR[k][_ixmap_left], chunk_next[k]])
+            _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
 
         self._ixmap = _ixmap_new
         self._ixmap_pointer = 0
@@ -284,7 +284,7 @@ class FilesBatcher(BaseBatcher):
             raise BatcherException(f'data_files_fp is empty: {data_files_fp}')
 
         self._chunk_builder = chunk_builder
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files (TR chunks).')
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files')
 
         self._data_chunks = []
         self.q_to_loader = queue.Queue()
@@ -370,10 +370,7 @@ class FilesBatcherMP(BaseBatcher):
             level=  loglevel)
 
         self._data_files_fp = data_files_fp
-        if not self._data_files_fp:
-            raise BatcherException(f'data_files_fp is empty: {data_files_fp}')
-
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files (TR chunks).')
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files')
 
         self.ompr = OMPRunner(
             rww_class=          chunk_builder_class,
