@@ -270,7 +270,7 @@ class FilesBatcher(BaseBatcher):
             **kwargs,
     ):
         """
-        data_files_fp:
+        data_TR_chunk_fp:
             list of file paths where data of TR chunks is stored
         chunk_builder(file:str):
             function that should return chunk of data Dict[str,NPL] given file path """
@@ -281,7 +281,7 @@ class FilesBatcher(BaseBatcher):
 
         self._data_files_fp = data_files_fp
         if not self._data_files_fp:
-            raise BatcherException(f'data_files_fp is empty: {data_files_fp}')
+            raise BatcherException(f'data_TR_chunk_fp is empty: {data_files_fp}')
 
         self._chunk_builder = chunk_builder
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files')
@@ -344,7 +344,8 @@ class FilesBatcherMP(BaseBatcher):
 
     def __init__(
             self,
-            data_files_fp: List[str],
+            data_TR_chunk_fp: List[str],
+            data_TS_chunk_fp: Optional[str],
             chunk_builder_class: type(RunningWorker),
             rww_init_kwargs: Optional[Dict]=    None,
             n_workers: int=                     5,
@@ -353,8 +354,10 @@ class FilesBatcherMP(BaseBatcher):
             **kwargs,
     ):
         """
-        data_files_fp:
-            list of file paths where data of TR chunks is stored
+        data_TR_chunk_fp:
+            list of file paths with TR data chunks
+        data_TS_chunk_fp:
+            file path with TS data chunks
         chunk_builder_class:
             is a class of type RunningWorker, where process accepts file_fp(str)
             and returns a NN ready chunk of data Dict[str,NPL]
@@ -369,8 +372,9 @@ class FilesBatcherMP(BaseBatcher):
             name=   f'{self.__class__.__name__}_logger',
             level=  loglevel)
 
-        self._data_files_fp = data_files_fp
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files')
+        self._data_TR_chunk_fp = data_TR_chunk_fp
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
+                         f'got TS file: {bool(data_TS_chunk_fp)}')
 
         self.ompr = OMPRunner(
             rww_class=          chunk_builder_class,
@@ -383,11 +387,20 @@ class FilesBatcherMP(BaseBatcher):
         for _ in range(n_workers):
             self._put_next_task_to_ompr()
 
-        super().__init__(logger=self.logger, **kwargs)
+        data_TS_chunk = None
+        if data_TS_chunk_fp:
+            cb_kwargs = {}
+            if rww_init_kwargs:
+                cb_kwargs.update(rww_init_kwargs)
+            cb = chunk_builder_class(**cb_kwargs)
+            data_TS_chunk = cb.process(data_TS_chunk_fp)
+            self.logger.info(f'*** {self.__class__.__name__} loaded data TS chunk from {data_TS_chunk_fp}')
+
+        super().__init__(data_TS=data_TS_chunk, logger=self.logger, **kwargs)
 
     def _put_next_task_to_ompr(self):
-        file = self._data_files_fp.pop(0)
-        self._data_files_fp.append(file)
+        file = self._data_TR_chunk_fp.pop(0)
+        self._data_TR_chunk_fp.append(file)
         self.ompr.process({'file':file})
 
     def load_data_TR_chunk(self) -> Dict[str,NPL]:
