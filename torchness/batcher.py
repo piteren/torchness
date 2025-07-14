@@ -394,7 +394,7 @@ class FilesBatcherMP(BaseBatcher):
                 cb_kwargs.update(rww_init_kwargs)
             cb = chunk_builder_class(**cb_kwargs)
             data_TS_chunk = cb.process(data_TS_chunk_fp)
-            self.logger.info(f'*** {self.__class__.__name__} loaded data TS chunk from {data_TS_chunk_fp}')
+            self.logger.info(f'> loaded data TS chunk from {data_TS_chunk_fp}')
 
         super().__init__(data_TS=data_TS_chunk, logger=self.logger, **kwargs)
 
