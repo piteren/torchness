@@ -340,7 +340,7 @@ class FilesBatcher(BaseBatcher):
 class FilesBatcherMP(BaseBatcher):
     """ FilesBatcherMP uses subprocesses (OMPR) to load data files in the background.
     It is designed for cases, where data saved in files needs further processing before loading into NN,
-    and read operations are not critical. """
+    and read operations are less critical than processing. """
 
     def __init__(
             self,
