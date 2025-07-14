@@ -346,7 +346,7 @@ class FilesBatcherMP(BaseBatcher):
             self,
             data_TR_chunk_fp: List[str],
             data_TS_chunk_fp: Optional[str],
-            chunk_builder_class: type(RunningWorker),
+            chunk_processor_class: type(RunningWorker),
             rww_init_kwargs: Optional[Dict]=    None,
             n_workers: int=                     5,
             logger=                             None,
@@ -377,7 +377,7 @@ class FilesBatcherMP(BaseBatcher):
                          f'got TS file: {bool(data_TS_chunk_fp)}')
 
         self.ompr = OMPRunner(
-            rww_class=          chunk_builder_class,
+            rww_class=          chunk_processor_class,
             rww_init_kwargs=    rww_init_kwargs,
             devices=            [None] * n_workers,
             ordered_results=    False,
@@ -387,16 +387,16 @@ class FilesBatcherMP(BaseBatcher):
         for _ in range(n_workers):
             self._put_next_task_to_ompr()
 
-        data_TS_chunk = None
+        data_TS = None
         if data_TS_chunk_fp:
             cb_kwargs = {}
             if rww_init_kwargs:
                 cb_kwargs.update(rww_init_kwargs)
-            cb = chunk_builder_class(**cb_kwargs)
-            data_TS_chunk = cb.process(data_TS_chunk_fp)
+            cb = chunk_processor_class(**cb_kwargs)
+            data_TS = cb.process(data_TS_chunk_fp)
             self.logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
 
-        super().__init__(data_TS=data_TS_chunk, logger=self.logger, **kwargs)
+        super().__init__(data_TS=data_TS, logger=self.logger, **kwargs)
 
     def _put_next_task_to_ompr(self):
         file = self._data_TR_chunk_fp.pop(0)
