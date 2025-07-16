@@ -374,7 +374,7 @@ class FilesBatcherMP(BaseBatcher):
 
         self._data_TR_chunk_fp = data_TR_chunk_fp
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
-                         f'got TS file: {bool(data_TS_chunk_fp)}')
+                         f'got TS file: {bool(data_TS_chunk_fp)} n_workers:{n_workers}')
 
         self.ompr = OMPRunner(
             rww_class=          chunk_processor_class,

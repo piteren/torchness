@@ -1,5 +1,7 @@
+from pypaq.lipytools.stats import msmx
+from pypaq.lipytools.plots import histogram
 import torch
-from typing import Tuple
+from typing import Tuple, Optional
 
 from torchness.base import TNS, DTNS
 
@@ -37,6 +39,47 @@ def count_model_params(model:torch.nn.Module) -> int:
             nn = nn * s
         pp += nn
     return pp
+
+
+def inspect_params(
+        module: torch.nn.Module,
+        inspect_name: str,
+        detailed: bool=             False, # every param separately
+        save_dir: Optional[str]=    None,
+) -> str:
+    """ inspects params and gradients """
+
+    def vec_nfo(name:str, vec:torch.Tensor) -> str:
+        arr = vec.detach().view(-1).cpu().numpy()
+        if save_dir:
+            histogram(arr, name=f'{inspect_name}_{name}', save_FD=save_dir)
+        return f'{name:50} {msmx(arr)["string"]}'
+
+    pn = list(module.named_parameters())
+    names, params = zip(*pn)
+    grads = [p.grad.view(-1) if p.grad is not None else None for p in params]
+
+    nfo = []
+    if detailed:
+        for n,v in zip(names, params):
+            nfo.append(vec_nfo(n,v))
+
+        for n,g in zip(names, grads):
+            if g is not None:
+                nfo.append(vec_nfo(f'grad_{n}',g))
+
+    params_flat = [p.view(-1) for p in params]
+    params_flat = torch.cat(list(params_flat))
+    nfo.append(vec_nfo('params', params_flat))
+
+    grads_vec = [g for g in grads if g is not None]
+    if grads_vec:
+        grad_flat = torch.cat(grads_vec)
+        nfo.append(vec_nfo('grads', grad_flat))
+    else:
+        nfo.append('-- no grads --')
+
+    return '\n'.join(nfo)
 
 
 ### scores *****************************************************************************************
