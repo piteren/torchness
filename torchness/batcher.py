@@ -73,6 +73,17 @@ class BaseBatcher(ABC):
         self._ixmap_pointer = 0
         self._get_next_chunk_and_extend_ixmap()  # here first chunk is loaded
 
+        # resolve conc_func
+        conc_func = None
+        _cdt = type(self._data_TR[self._keys[0]])
+        if _cdt is ARR:
+            conc_func = np.concatenate
+        if _cdt is TNS:
+            conc_func = torch.cat
+        self._conc_func = conc_func
+        if conc_func is None:
+            raise BatcherException(f'wrong data type in chunk!\n{_cdt}')
+
         if data_TS and type(list(data_TS.values())[0]) is not dict:
             data_TS = {self.default_TS_name: data_TS}
         self._data_TS: Dict[str,Dict[str,NPL]] = data_TS
@@ -99,50 +110,47 @@ class BaseBatcher(ABC):
         precisely: when self._ixmap is small enough """
 
         stime = time.time()
+        #sub_time = stime
 
         chunk_next = self.load_data_TR_chunk()
+        #self.logger.debug(f'>> _get_next_chunk_.. load_data_TR_chunk(): {time.time() - sub_time:.2f}sec')
+        #sub_time = time.time()
 
         # set keys only once, with the first chunk
         if not self._keys:
             self._keys = sorted(list(chunk_next.keys()))
-        chunk_next_len = chunk_next[self._keys[0]].shape[0]
+        chunk_next_len = len(chunk_next[self._keys[0]])
 
-        _ixmap_new = None
-
-        if self.btype == 'base':
-            _ixmap_new = np.arange(chunk_next_len)
-
+        _ixmap_new = np.arange(chunk_next_len) # base
         if self.btype == 'random':
-            _ixmap_new = self.rng.choice(
-                a=          chunk_next_len,
-                size=       chunk_next_len,
-                replace=    False)
+            self.rng.shuffle(_ixmap_new)
+        #self.logger.debug(f'>> _get_next_chunk_.. _ixmap_new: {time.time() - sub_time:.2f}sec')
+        #sub_time = time.time()
 
         ### tries to concat left data with new chunk, only supported for ARR and TNS in chunks
 
         _ixmap_left = self._ixmap[self._ixmap_pointer:]
         _ixmap_left_size = len(_ixmap_left)
 
+        #self.logger.debug(f'>> _get_next_chunk_.. concat A: {time.time() - sub_time:.2f}sec')
+        #sub_time = time.time()
+        #print(self._keys, chunk_next.keys(), _ixmap_left_size, len(_ixmap_new))
+
         if _ixmap_left_size:
 
-            conc_func = None
-            _cdt = type(chunk_next[self._keys[0]])
-            if _cdt is ARR:
-                conc_func = np.concatenate
-            if _cdt is TNS:
-                conc_func = torch.cat
-            if conc_func is None:
-                raise BatcherException(f'wrong data type in chunk!\n{_cdt}')
-
             for k in self._keys:
-                chunk_next[k] = conc_func([self._data_TR[k][_ixmap_left], chunk_next[k]])
+                #print(k, self._data_TR[k].shape, chunk_next[k].shape)
+                chunk_next[k] = self._conc_func([self._data_TR[k][_ixmap_left], chunk_next[k]])
+            #self.logger.debug(f'>> _get_next_chunk_.. concat B: {time.time() - sub_time:.2f}sec')
+            #sub_time = time.time()
             _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
+            #self.logger.debug(f'>> _get_next_chunk_.. concat C: {time.time() - sub_time:.2f}sec')
 
         self._ixmap = _ixmap_new
         self._ixmap_pointer = 0
 
         self._data_TR = chunk_next
-        self._data_TR_len = self._data_TR[self._keys[0]].shape[0]
+        self._data_TR_len = len(self._data_TR[self._keys[0]])
 
         self.logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
 
@@ -374,7 +382,7 @@ class FilesBatcherMP(BaseBatcher):
 
         self._data_TR_chunk_fp = data_TR_chunk_fp
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
-                         f'got TS file: {bool(data_TS_chunk_fp)} n_workers:{n_workers}')
+                         f'got TS file: {bool(data_TS_chunk_fp)}, n_workers:{n_workers}')
 
         self.ompr = OMPRunner(
             rww_class=          chunk_processor_class,
