@@ -385,12 +385,13 @@ class FilesBatcherMP(BaseBatcher):
                          f'got TS file: {bool(data_TS_chunk_fp)}, n_workers:{n_workers}')
 
         self.ompr = OMPRunner(
-            rww_class=          chunk_processor_class,
-            rww_init_kwargs=    rww_init_kwargs,
-            devices=            [None] * n_workers,
-            ordered_results=    False,
-            rerun_crashed=      False,
-            logger=             get_child(logger=self.logger, change_level=10))
+            rww_class=              chunk_processor_class,
+            rww_init_kwargs=        rww_init_kwargs,
+            devices=                [None] * n_workers,
+            ordered_results=        False,
+            rerun_crashed=          False,
+            raise_rww_exception=    True,
+            logger=                 get_child(logger=self.logger, change_level=10))
 
         for _ in range(n_workers):
             self._put_next_task_to_ompr()
