@@ -357,6 +357,7 @@ class FilesBatcherMP(BaseBatcher):
             chunk_processor_class: type(RunningWorker),
             rww_init_kwargs: Optional[Dict]=    None,
             n_workers: int=                     5,
+            raise_rww_exception: bool=          False,
             logger=                             None,
             loglevel=                           20,
             **kwargs,
@@ -390,7 +391,7 @@ class FilesBatcherMP(BaseBatcher):
             devices=                [None] * n_workers,
             ordered_results=        False,
             rerun_crashed=          False,
-            raise_rww_exception=    True,
+            raise_rww_exception=    raise_rww_exception,
             logger=                 get_child(logger=self.logger, change_level=10))
 
         for _ in range(n_workers):
