@@ -172,6 +172,9 @@ class BaseBatcher(ABC):
         """ if TS data was given as a dict of named test-sets then name (TS) has to be given,
         otherwise name=None """
 
+        if not self._data_TS:
+            return []
+
         if name is None:
             if list(self._data_TS.keys()) != [self.default_TS_name]:
                 raise BatcherException('ERR: TS name must be given!')
