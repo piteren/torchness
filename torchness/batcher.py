@@ -91,7 +91,7 @@ class BaseBatcher(ABC):
         self._TS_batches = {}
 
         self.logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
-        self.logger.info(f' > data_TR_len:{self._data_TR_len} - first chunk')
+        self.logger.info(f' > data_TR_len: {self._data_TR_len} - first chunk')
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
             self.logger.info(f' > data_TS names: {list(self._data_TS.keys())}')
         self.logger.info(f' > data_TS_len: {self._data_TS_len}')
@@ -197,10 +197,7 @@ class BaseBatcher(ABC):
     def get_TS_names(self) -> Optional[List[str]]:
         if not self._data_TS:
             return None
-        names = list(self._data_TS.keys())
-        if names != [self.default_TS_name]:
-            return names
-        return None
+        return list(self._data_TS.keys())
 
     @property
     def keys(self) -> List[str]:

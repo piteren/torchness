@@ -550,7 +550,7 @@ class MOTorch(ParaSave):
         save_obj = None
 
         try:
-            save_obj = torch.load(f=ckpt_path, map_location=self.device) # immediately place all tensors to current device (not previously saved one)
+            save_obj = torch.load(f=ckpt_path, map_location=self.device, weights_only=True) # immediately place all tensors to current device (not previously saved one)
             self._module.load_state_dict(save_obj.pop('model_state_dict'))
             self._log.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
@@ -752,8 +752,8 @@ class MOTorch(ParaSave):
 
     def run_train(
             self,
-            data_TR: Dict[str,np.ndarray],  # INFO: it also accepts Dict[str,torch.Tensor]
-            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
+            data_TR: Optional[Dict[str,np.ndarray]]=None,  # INFO: also accepts Dict[str,torch.Tensor]
+            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=None,
             split_factor: float=        0.0,
             n_batches: Optional[int]=   None,
             test_freq=                  100,    # number of batches between tests, model SHOULD BE tested while training
@@ -766,7 +766,8 @@ class MOTorch(ParaSave):
         if data_TR:
             self.load_data(data_TR=data_TR, data_TS=data_TS, split_factor=split_factor)
 
-        if not self._batcher: raise MOTorchException(f'{self.name} has not been given data for training, use load_data()')
+        if not self._batcher:
+            raise MOTorchException(f'{self.name} has not been given data for training, use load_data()')
 
         self._log.info(f'{self.name} - training starts [acc / F1 / loss]')
         self._log.info(f'data sizes (TR,VL,TS) samples: {self._batcher.get_data_size()}')
@@ -790,7 +791,8 @@ class MOTorch(ParaSave):
             self.save_ckpt()
 
         ts_bIX = [bIX for bIX in range(n_batches+1) if not bIX % test_freq] # batch indexes when test will be performed
-        assert ts_bIX, 'ERR: model SHOULD BE tested while training!'
+        if not ts_bIX:
+            raise MOTorchException('model SHOULD BE tested while training, but no test indexes are given')
         ten_factor = int(0.1*len(ts_bIX)) # number of tests for last 10% of training
         if ten_factor < 1: ten_factor = 1 # we need at least one result
         if self.hpmser_mode: ts_bIX = ts_bIX[-ten_factor:]
@@ -832,7 +834,7 @@ class MOTorch(ParaSave):
                     if ts_score is not None:
                         ts_score_all_results.append(ts_score)
 
-                    key_name = f'_{k}' if k is not None else ''
+                    key_name = f'_{k}' if k != self._batcher.default_TS_name else ''
                     if self.do_TB:
                         if ts_loss is not None:
                             self.log_TB(value=ts_loss,                    tag=f'ts{key_name}/loss',              step=self.train_step)
@@ -942,7 +944,6 @@ class MOTorch(ParaSave):
         return self._module
 
     def train(self, mode:bool=True):
-
         return self._module.train(mode)
 
     @property
