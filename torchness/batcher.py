@@ -384,6 +384,11 @@ class FilesBatcherMP(BaseBatcher):
         self._data_TR_chunk_fp = data_TR_chunk_fp
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
                          f'got TS file: {bool(data_TS_chunk_fp)}, n_workers:{n_workers}')
+        self.static_data = n_workers >= len(self._data_TR_chunk_fp)
+        if self.static_data:
+            if n_workers > len(self._data_TR_chunk_fp):
+                n_workers = len(self._data_TR_chunk_fp)
+                self.logger.info(f'> reduced n_workers to {n_workers} for static data case')
 
         self.ompr = OMPRunner(
             rww_class=              chunk_processor_class,
@@ -396,6 +401,8 @@ class FilesBatcherMP(BaseBatcher):
 
         for _ in range(n_workers):
             self._put_next_task_to_ompr()
+        if self.static_data:
+            self.static_data = [self.ompr.get_result() for _ in range(n_workers)]
 
         data_TS = None
         if data_TS_chunk_fp:
@@ -415,9 +422,13 @@ class FilesBatcherMP(BaseBatcher):
 
     def load_data_TR_chunk(self) -> Dict[str,NPL]:
         stime = time.time()
-        data = self.ompr.get_result()
+        if self.static_data:
+            data = self.static_data.pop(0)
+            self.static_data.append(data)
+        else:
+            data = self.ompr.get_result()
+            self._put_next_task_to_ompr()  # put next task immediately
         self.logger.debug(f'> load_data_TR_chunk() waited {time.time() - stime:.2f}sec for a new data chunk')
-        self._put_next_task_to_ompr() # put next task immediately
         return data
 
     def exit(self):
