@@ -353,7 +353,7 @@ class FilesBatcherMP(BaseBatcher):
     def __init__(
             self,
             data_TR_chunk_fp: List[str],
-            data_TS_chunk_fp: Optional[str],
+            data_TS_chunk_fp: Optional[str|Dict[str,str]],
             chunk_processor_class: type(RunningWorker),
             rww_init_kwargs: Optional[Dict]=    None,
             n_workers: int=                     5,
@@ -381,9 +381,10 @@ class FilesBatcherMP(BaseBatcher):
             name=   f'{self.__class__.__name__}_logger',
             level=  loglevel)
 
+        n_test_files = 0 if not data_TS_chunk_fp else (1 if type(data_TS_chunk_fp) is str else len(data_TS_chunk_fp))
         self._data_TR_chunk_fp = data_TR_chunk_fp
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
-                         f'got TS file: {bool(data_TS_chunk_fp)}, n_workers:{n_workers}')
+                         f'{n_test_files} TS files, n_workers:{n_workers}')
         self.static_data = n_workers >= len(self._data_TR_chunk_fp)
         if self.static_data:
             if n_workers > len(self._data_TR_chunk_fp):
@@ -410,8 +411,14 @@ class FilesBatcherMP(BaseBatcher):
             if rww_init_kwargs:
                 cb_kwargs.update(rww_init_kwargs)
             cb = chunk_processor_class(**cb_kwargs)
-            data_TS = cb.process(data_TS_chunk_fp)
-            self.logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
+            if type(data_TS_chunk_fp) is str:
+                data_TS = cb.process(data_TS_chunk_fp)
+                self.logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
+            else:
+                data_TS = {}
+                for k,fp in data_TS_chunk_fp.items():
+                    data_TS[k] = cb.process(fp)
+                    self.logger.info(f'> loaded and processed data_TS_chunk {k} from {fp}')
 
         super().__init__(data_TS=data_TS, logger=self.logger, **kwargs)
 
