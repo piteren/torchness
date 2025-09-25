@@ -144,10 +144,10 @@ class MOTorch(ParaSave):
         'train_step':       0,                  # default (starting) train step, updated with backward()
             # LR management (check torchness.base_elements.ScaledLR)
         'baseLR':           3e-4,
-        'warm_up':          None,
-        'n_wup_off':        2.0,
-        'ann_base':         None,
-        'ann_step':         1.0,
+        'warmup_end':       0,
+        'anneal_start':     None,
+        'anneal_base':      0.999,
+        'anneal_mul':       1.0,
             # gradients clipping parameters (check torchness.grad_clipping.GradClipperMAVG)
         'gc_do_clip':       False,
         'gc_start_val':     0.1,
@@ -350,11 +350,11 @@ class MOTorch(ParaSave):
         # from now LR is managed by scheduler
         self._scheduler = ScaledLR(
             optimizer=      self._opt,
-            starting_step=  self.train_step,
-            warm_up=        self.warm_up,
-            n_wup_off=      self.n_wup_off,
-            ann_base=       self.ann_base,
-            ann_step=       self.ann_step,
+            step=           self.train_step,
+            warmup_end=     self.warmup_end,
+            anneal_start=   self.anneal_start,
+            anneal_base=    self.anneal_base,
+            anneal_mul=     self.anneal_mul,
             logger=         get_child(self._log, 'ScaledLR'))
 
         self._grad_clipper = GradClipperMAVG(
@@ -513,7 +513,7 @@ class MOTorch(ParaSave):
         self._scheduler.step()              # apply LR scheduler
         self.train_step += 1                # update step
 
-        out['currentLR'] = self._scheduler.get_last_lr()[0] # INFO: currentLR of the first group is taken
+        out['currentLR'] = self._scheduler.get_lr()[0] # INFO: currentLR of the first group is taken
         out.update(gnD)
 
         if empty_cuda_cache:
