@@ -4,9 +4,8 @@ import torch
 from typing import Optional
 
 
-
 # applies warm-up at the beginning (for warm_up steps) and annealing after some steps (after warm_up * n_wup_off), should be called every step
-class ScaledLR(torch.optim.lr_scheduler._LRScheduler):
+class old_ScaledLR(torch.optim.lr_scheduler._LRScheduler):
 
     def __init__(
             self,
@@ -54,3 +53,59 @@ class ScaledLR(torch.optim.lr_scheduler._LRScheduler):
 
     def _get_closed_form_lr(self):
         return self.get_lr()
+
+
+class ScaledLR(torch.optim.lr_scheduler._LRScheduler):
+    """ Applies warm-up and annealing for LR of 0 group.
+    ScaledLR.step() should be called every update / batch / step """
+
+    def __init__(
+            self,
+            optimizer,
+            step: int=                      0,      # current step (to start with)
+            warmup_end: int=                1000,   # warm-up starts at 0 step and goes for warmup_end steps
+            anneal_start: Optional[int]=    10_000, # None turns off annealing
+            anneal_base: float=             0.999,  # 1.0 turns off annealing, lower values speed-up
+            anneal_step: float=             1.0,    # higher values speed-up annealing
+            last_epoch=                     -1,
+            logger=                         None,
+    ):
+
+        if not logger:
+            logger = get_pylogger(name='ScaledLR')
+        self._log = logger
+
+        self._step = step
+        self.w_end = warmup_end
+        self.a_start = anneal_start
+        self.a_base = anneal_base
+        self.a_step = anneal_step
+
+        super(ScaledLR, self).__init__(optimizer, last_epoch)
+
+    # updates LR of 0 group
+    def update_base_lr0(self, lr: float):
+        self.base_lrs[0] = lr
+
+    def get_lr(self):
+
+        lrs = np.asarray(self.base_lrs) # self.base_lrs keeps [baseLR] of groups
+        if self.warm_up:
+            wm_ratio = min(self._step, self.warm_up) / self.warm_up
+            lrs *= wm_ratio
+            self._log.debug(f'applied warmUp ({self.warm_up}) to lR')
+
+        if self.ann_base is not None and self.ann_base != 1.0:
+            steps_offs = max(0, self._step - int(self.warm_up * self.n_wup_off))
+            lrs *= self.ann_base ** (steps_offs * self.ann_step)
+            self._log.debug(f'applied annealing to lR ({self.ann_base:.5f},{self.ann_step:.5f})')
+
+        self._log.debug(f'ScaledLR scheduler step: {self._step} lrs: {lrs.tolist()}')
+        self._step += 1
+        return lrs.tolist()
+
+    def _get_closed_form_lr(self):
+        return self.get_lr()
+
+    def step(self, epoch:Optional[int]=None):
+        super(ScaledLR, self).step(epoch)
