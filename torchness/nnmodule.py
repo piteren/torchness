@@ -163,7 +163,7 @@ class NNModule(torch.nn.Module):
         module_kwargs = {}
         ckpt = None
         if ckpt_fp:
-            ckpt = torch.load(f=ckpt_fp, map_location=device, weights_only=True)
+            ckpt = torch.load(f=ckpt_fp, map_location=device, weights_only=False)
             logger.info(f'> ckpt got: {list(ckpt.keys())}')
             if 'params' in ckpt:
                 ckpt_pms = ckpt['params']
