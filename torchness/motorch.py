@@ -437,7 +437,6 @@ class MOTorch(ParaSave):
 
         return out
 
-
     def convert(self, data:Any) -> TNS:
         """ converts given data to torch.Tensor compatible with self (device,dtype) """
 
@@ -452,7 +451,6 @@ class MOTorch(ParaSave):
             data = data.to(self.device, self.dtype if data.is_floating_point() or data.is_complex() else None)
 
         return data
-
 
     def loss(
             self,
@@ -486,7 +484,6 @@ class MOTorch(ParaSave):
             torch.cuda.empty_cache()
 
         return out
-
 
     def backward(
             self,
@@ -535,7 +532,6 @@ class MOTorch(ParaSave):
         model_dir = cls._get_model_dir(model_name=model_name, save_topdir=save_topdir)
         return f'{model_dir}/{model_name}.pt'
 
-
     def load_ckpt(
             self,
             name: Optional[str]=        None,  # allows to load custom name (model_name)
@@ -559,7 +555,6 @@ class MOTorch(ParaSave):
 
         return save_obj
 
-
     def save_ckpt(
             self,
             name: Optional[str]=                None,   # allows to save under custom name (model_name)
@@ -576,7 +571,6 @@ class MOTorch(ParaSave):
         if additional_data: save_obj.update(additional_data)
 
         torch.save(obj=save_obj, f=ckpt_path)
-
 
     def save(self):
         """ saves MOTorch (ParaSave POINT and model checkpoint) """
@@ -749,7 +743,6 @@ class MOTorch(ParaSave):
             seed=           self.seed,
             logger=         get_child(self._log, 'Batcher'))
 
-
     def run_train(
             self,
             data_TR: Optional[Dict[str,np.ndarray]]=None,  # INFO: also accepts Dict[str,torch.Tensor]
@@ -890,7 +883,6 @@ class MOTorch(ParaSave):
 
         return ts_score_fin
 
-
     def run_test(
             self,
             data: Optional[Dict[str,np.ndarray]]=   None,
@@ -969,6 +961,10 @@ class MOTorch(ParaSave):
     @property
     def logger(self):
         return self._log
+
+    @property
+    def optimizer(self):
+        return self._opt
 
     @property
     def size(self) -> int:

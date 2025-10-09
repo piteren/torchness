@@ -181,4 +181,6 @@ class NNModule(torch.nn.Module):
         if ckpt:
             net.load_state_dict(ckpt['model'], strict=True)
 
+        net.eval()
+
         return net
