@@ -39,16 +39,16 @@ class LinModel(Module):
         logits = self.lin(inp)
         return {'logits': logits}
 
-    def loss(self, inp, lbl) -> dict:
+    def loss(self, inp, true) -> dict:
         out = self(inp)
-        out['loss'] = self.loss_func(out['logits'], lbl)
-        out['acc'] = self.accuracy(out['logits'], lbl)  # using baseline
+        out['true'] = true
+        out['loss'] = self.loss_func(out['logits'], true)
         return out
 
 
 class LinModelOpt(LinModel):
 
-    def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
+    def get_optimizer_definition(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
         return torch.optim.SGD, {'momentum': 0.666}
 
 
@@ -392,22 +392,20 @@ class TestMOTorch(unittest.TestCase):
         lbl = np.random.randint(0,9,5)
 
         out = model(inp)
-        print(out)
         logits = out['logits']
         self.assertTrue(logits.shape[0]==5 and logits.shape[1]==10)
 
         out = model.loss(inp, lbl)
         loss = out['loss']
-        acc = out['acc']
-        print(loss, acc)
+        metrics = model.metrics(**out)
         self.assertTrue(type(loss) is torch.Tensor)
-        self.assertTrue(type(acc) is torch.Tensor)
+        self.assertTrue(type(metrics) is dict)
 
         for _ in range(5):
             out = model.backward(inp, lbl)
             loss = out['loss']
-            acc = out['acc']
-            print(model.train_step, loss, acc)
+            metrics = model.metrics(**out)
+            print(model.train_step, loss, metrics)
 
     def test_data_conv(self):
 
@@ -435,15 +433,15 @@ class TestMOTorch(unittest.TestCase):
             in_drop=        0.0,
             logger=         _log,
         )
-        self.assertTrue(type(model._opt) == torch.optim.Adam)
+        self.assertTrue(type(model.optimizer) == torch.optim.Adam)
 
         model = MOTorch(
             module_type=    LinModelOpt,
             in_drop=        0.0,
             logger=         _log,
         )
-        self.assertTrue(type(model._opt) == torch.optim.SGD)
-        print(model._opt)
+        self.assertTrue(type(model.optimizer) == torch.optim.SGD)
+        print(model.optimizer)
 
     def test_training_mode(self):
 
@@ -451,7 +449,7 @@ class TestMOTorch(unittest.TestCase):
             module_type=    LinModel,
             in_drop=        0.8,
             logger=         logger)
-        # INFO: this model has dropout, so output should differ fro training True / False
+        # INFO: this model has dropout, so output should differ from training True / False
 
         self.assertFalse(model.module.training) # default value
 
@@ -473,10 +471,6 @@ class TestMOTorch(unittest.TestCase):
         self.assertTrue(torch.equal(loss_nt, model.loss(inp, lbl)['loss']))
         self.assertFalse(model.module.training)
 
-        self.assertFalse(torch.equal(logits_nt, model(inp, set_training=True)['logits']))
-        self.assertFalse(torch.equal(loss_nt, model.loss(inp, lbl, set_training=True)['loss']))
-        self.assertFalse(model.module.training)
-
     def test_no_grad(self):
 
         model = MOTorch(
@@ -489,23 +483,11 @@ class TestMOTorch(unittest.TestCase):
 
         logits = model(inp)['logits']
         print(logits.requires_grad)
-        self.assertTrue(not logits.requires_grad)
-        print(logits.grad_fn)
-        self.assertTrue(logits.grad_fn is None)
-        for param in model.module.parameters():
-            print(f'param shape: {param.shape}, grad: {param.grad}')
-            self.assertTrue(param.grad is None)
-        print()
-
-        logits = model(inp, no_grad=False)['logits']
-        print(logits.requires_grad)
         self.assertTrue(logits.requires_grad)
         print(logits.grad_fn)
-        print(type(logits.grad_fn))
         self.assertTrue(logits.grad_fn is not None)
-        for param in model.module.parameters():
-            print(f'param shape: {param.shape}, grad: {param.grad}')
-            self.assertTrue(param.grad is None)
+        for name, param in model.module.named_parameters():
+            print(f'param name:{name} shape:{param.shape} grad:{param.grad}')
         print()
 
         out = model.loss(inp, lbl)
@@ -520,14 +502,13 @@ class TestMOTorch(unittest.TestCase):
         print()
 
         loss.backward()
-        for param in model.module.parameters():
-            print(f'param shape: {param.shape}, grad: {param.grad}')
+        for name, param in model.module.named_parameters():
+            print(f'param name:{name} shape:{param.shape} grad.shape:{param.grad.shape}')
             self.assertTrue(param.grad is not None)
 
         model.module.zero_grad()
-
-        out = model.loss(inp, lbl, no_grad=True)
-        self.assertRaises(RuntimeError, loss.backward)
+        for name, param in model.module.named_parameters():
+            self.assertTrue(param.grad is None)
 
     def test_train_step(self):
 

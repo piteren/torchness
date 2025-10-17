@@ -1,6 +1,5 @@
 import numpy as np
 import shutil
-from sklearn.metrics import f1_score
 import torch
 from typing import Optional, Dict, Tuple, Any, Union
 
@@ -11,7 +10,8 @@ from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
 from torchness.batcher import DataBatcher
-from torchness.base import TNS, DTNS, NUM, NPL
+from torchness.base import TNS, DTNS, NPL
+from torchness.tools import accuracy, f1
 from torchness.devices import get_devices
 from torchness.ckpt import mrg_ckpts
 from torchness.scaled_LR import ScaledLR
@@ -24,9 +24,13 @@ class MOTorchException(Exception):
 
 
 class Module(torch.nn.Module):
-    """ Module type supported by MOTorch
-    defines computation graph of forward (FWD) and loss
-    accuracy() and f1() are metrics used by MOTorch while training """
+    """ NN Module class supported by MOTorch
+
+    default_score - name of metric used to compare modules
+    score_should_increase - direction of score improvement """
+
+    default_score = 'f1'
+    score_should_increase = True
 
     def __init__(self, logger=None, loglevel=20):
         super().__init__()
@@ -34,57 +38,49 @@ class Module(torch.nn.Module):
             logger = get_pylogger(name=f'{self.__class__.__name__}_logger', level=loglevel)
         self.logger = logger
 
+    def get_optimizer_definition(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
+        """ if implemented, MOTorch will use Optimizer definition returned:
+        Tuple[optimizer type, optimizer kwargs]
+
+        * optimizer class may be given with kwarg (opt_class) to MOTorch,
+        but if it is needed to define optimizer with its kwargs, this is the way """
+        raise MOTorchException(f'get_optimizer_definition not implemented for {self.__class__.__name__}')
 
     def forward(self, **kwargs) -> DTNS:
-        """ forward pass (FWD) method
+        """ forward (FWD) pass
         returned DTNS should have at least 'logits' key
-        with logits tensor for proper MOTorch.run_train()
 
         exemplary implementation:
-            return {'logits': self.logits(input)} """
-        raise NotImplementedError
-
-    # noinspection PyMethodMayBeStatic
-    def accuracy(self, logits:TNS, labels:TNS) -> NUM:
-        """ baseline accuracy implementation for logits & lables """
-        return (torch.argmax(logits, dim=-1) == labels).to(torch.float).mean()
-
-    # noinspection PyMethodMayBeStatic
-    def f1(self, logits:TNS, labels:TNS, average='weighted') -> float:
-        """ baseline F1 implementation for logits & lables
-        correctly supports average (since test while training may be run in batches):
-            micro (per sample)
-            macro (per class)
-            weighted (per class weighted by support) """
-        preds = torch.argmax(logits, dim=-1).cpu()
-        return f1_score(
-            y_true=         labels.cpu(),
-            y_pred=         preds,
-            average=        average,
-            labels=         np.unique(preds),
-            zero_division=  0)
-
-
-    def get_optimizer_def(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
-        """ if implemented, MOTorch will use returned Optimizer definition
-        (Optimizer type, Optimizer kwargs)
-
-        *optimizer class may be given with kwarg (opt_class) to MOTorch,
-        but if it is needed to define optimizer with its kwargs, this is the way """
-        raise MOTorchException(f'get_optimizer_def not implemented for {self.__class__.__name__}')
-
+        return {'logits': self.logits(**kwargs)} """
+        raise MOTorchException(f'forward not implemented for {self.__class__.__name__}')
 
     def loss(self, **kwargs) -> DTNS:
-        """ forward + loss method
-        returned DTNS should be: .forward() DTNS updated with loss (and optional acc, f1)
+        """ forward (FWD) pass + loss
+        returned DTNS should be: .forward() DTNS updated with 'loss'
 
         exemplary implementation:
-        out = self(input)                                                                   <- forward DTNS
-        logits = out['logits']
-        out['loss'] = torch.nn.functional.cross_entropy(logits, labels, reduction='mean')   <- update with loss
-        out['acc'] = self.accuracy(logits, labels)                                          <- update with acc
-        out['f1'] = self.f1(logits, labels)                                                 <- update with f1 """
-        raise NotImplementedError
+        out = self(**kwargs)
+        out['true'] = kwargs['true']
+        out['loss'] = torch.nn.functional.cross_entropy(out['logits'], out['true'], reduction='mean')
+        return out """
+        raise MOTorchException(f'loss not implemented for {self.__class__.__name__}')
+
+    # noinspection PyMethodMayBeStatic
+    def metrics(self, **kwargs) -> DTNS:
+        """ default implementation for [loss, acc, f1] for a classification model """
+        pred = torch.argmax(kwargs['logits'], dim=-1)
+        return {
+            'loss': kwargs['loss'],
+            'accuracy': accuracy(target=kwargs['true'], pred=pred, logits=None),
+            'f1': f1(target=kwargs['true'], pred=pred, logits=None, average='weighted')}
+
+    # noinspection PyMethodMayBeStatic
+    def metrics_nice(self, metrics:DTNS) -> str:
+        """ str representation of metrics used by MOTorch.run_train() """
+        s = []
+        for k in metrics:
+            s.append(f"{k}:{metrics[k]:.4f}")
+        return " ".join(metrics)
 
 
 class MOTorch(ParaSave):
@@ -328,8 +324,8 @@ class MOTorch(ParaSave):
             self._log.info(f'> {self.name} checkpoint not loaded, not even tried because \'try_load_ckpt\' was set to {self.try_load_ckpt}')
 
         self._log.debug(f'> moving {self.name} to device: {self.device}, dtype: {self.dtype}')
-        self._module.to(self.device)
-        self._module.to(self.dtype)
+        self.module.to(self.device)
+        self.module.to(self.dtype)
 
         self._log.debug(f'{self.name} Module initialized!')
 
@@ -337,12 +333,12 @@ class MOTorch(ParaSave):
 
         opt_kwargs = {}
         try:
-            self.opt_class, opt_kwargs = self._module.get_optimizer_def()
+            self.opt_class, opt_kwargs = self.module.get_optimizer_definition()
             self._log.debug(f'using optimizer from Module: {self.opt_class.__name__}, Module optimizer kwargs: {opt_kwargs}')
-        except MOTorchException as e:
+        except MOTorchException:
             self._log.debug(f'using optimizer resolved by MOTorch: {self.opt_class.__name__}')
 
-        opt_kwargs['params'] = self._module.parameters()
+        opt_kwargs['params'] = self.module.parameters()
         opt_kwargs['lr'] = self.baseLR
         self._opt = self.opt_class(**opt_kwargs)
         self._log.debug(f'MOTorch optimizer:\n{self._opt}')
@@ -359,7 +355,7 @@ class MOTorch(ParaSave):
 
         self._grad_clipper = GradClipperMAVG(
             do_clip=        self.gc_do_clip,
-            module=         self._module,
+            module=         self.module,
             start_val=      self.gc_start_val,
             factor=         self.gc_factor,
             first_avg=      self.gc_first_avg,
@@ -399,46 +395,8 @@ class MOTorch(ParaSave):
 
     # **************************************************************************** model call (run NN with data) methods
 
-    def __call__(
-            self,
-            *args,
-            bypass_data_conv=               False,
-            set_training: Optional[bool]=   None,   # for dropout etc
-            no_grad=                        True,   # by default gradients calculation is disabled for FWD call
-            empty_cuda_cache=               False,  # releases all unoccupied cached memory after model call currently held by the caching allocator
-            **kwargs,
-    ) -> DTNS:
-        """ forward (FWD) call
-        runs forward on nn.Module, manages:
-        - data type / format preparation
-        - training mode
-        - gradients computation
-        """
-
-        if set_training is not None:
-            self.train(set_training)
-
-        if not (bypass_data_conv or self.bypass_data_conv):
-            args = [self.convert(data=a) for a in args]
-            kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
-
-        if no_grad:
-            with torch.no_grad():
-                out = self._module(*args, **kwargs)
-        else:
-            out = self._module(*args, **kwargs)
-
-        # eventually roll back to MOTorch default
-        if set_training:
-            self.train(False)
-
-        if empty_cuda_cache:
-            torch.cuda.empty_cache()
-
-        return out
-
     def convert(self, data:Any) -> TNS:
-        """ converts given data to torch.Tensor compatible with self (device,dtype) """
+        """ converts given data to TNS compatible with self (device,dtype) """
 
         # do not convert None
         if type(data) is not None:
@@ -452,56 +410,24 @@ class MOTorch(ParaSave):
 
         return data
 
-    def loss(
-            self,
-            *args,
-            bypass_data_conv=               False,
-            set_training: Optional[bool]=   None,   # for not None forces given training mode for torch.nn.Module
-            no_grad=                        False,  # by default gradients calculation is enabled for loss call
-            empty_cuda_cache=               False,  # releases all unoccupied cached memory after model call currently held by the caching allocator
-            **kwargs,
-    ) -> DTNS:
-        """ forward + loss call on NN """
-
-        if set_training is not None:
-            self.train(set_training)
-
+    def __call__(self, *args, bypass_data_conv=False, **kwargs) -> DTNS:
+        """forward (FWD) pass of self.module with data preparation"""
         if not (bypass_data_conv or self.bypass_data_conv):
             args = [self.convert(data=a) for a in args]
             kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
+        return self.module(*args, **kwargs)
 
-        if no_grad:
-            with torch.no_grad():
-                out = self._module.loss(*args, **kwargs)
-        else:
-            out = self._module.loss(*args, **kwargs)
+    def loss(self, *args, bypass_data_conv=False, **kwargs) -> DTNS:
+        """forward (FWD) pass + loss of self.module with data preparation"""
+        if not (bypass_data_conv or self.bypass_data_conv):
+            args = [self.convert(data=a) for a in args]
+            kwargs = {k: self.convert(data=kwargs[k]) for k in kwargs}
+        return self.module.loss(*args, **kwargs)
 
-        # eventually roll back to MOTorch default
-        if set_training:
-            self.train(False)
+    def backward(self, *args, bypass_data_conv=False, **kwargs) -> DTNS:
+        """ backward call on NN, runs loss calculation + update parameters of NN with optimizer """
 
-        if empty_cuda_cache:
-            torch.cuda.empty_cache()
-
-        return out
-
-    def backward(
-            self,
-            *args,
-            bypass_data_conv=   False,
-            set_training: bool= True,   # for backward training mode is set to True by default
-            empty_cuda_cache=   False,  # releases all unoccupied cached memory after model call currently held by the caching allocator
-            **kwargs
-    ) -> DTNS:
-        """ backward call on NN, runs loss calculation + update of Module """
-
-        out = self.loss(
-            *args,
-            bypass_data_conv=   bypass_data_conv,
-            set_training=       set_training,
-            no_grad=            False, # True makes no sense with backward()
-            empty_cuda_cache=   empty_cuda_cache,
-            **kwargs)
+        out = self.loss(*args, bypass_data_conv=bypass_data_conv, **kwargs)
 
         self._opt.zero_grad()               # clear gradients
         out['loss'].backward()              # build gradients
@@ -512,9 +438,6 @@ class MOTorch(ParaSave):
 
         out['currentLR'] = self._scheduler.get_lr()[0] # INFO: currentLR of the first group is taken
         out.update(gnD)
-
-        if empty_cuda_cache:
-            torch.cuda.empty_cache()
 
         return out
 
@@ -547,7 +470,7 @@ class MOTorch(ParaSave):
 
         try:
             save_obj = torch.load(f=ckpt_path, map_location=self.device, weights_only=True) # immediately place all tensors to current device (not previously saved one)
-            self._module.load_state_dict(save_obj.pop('model_state_dict'))
+            self.module.load_state_dict(save_obj.pop('model_state_dict'))
             self._log.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
             # this exception logs as INFO since it is quite normal to not load checkpoint while init
@@ -567,7 +490,7 @@ class MOTorch(ParaSave):
             model_name=     name or self.name,
             save_topdir=    save_topdir or self.save_topdir)
 
-        save_obj = {'model_state_dict': self._module.state_dict()}
+        save_obj = {'model_state_dict': self.module.state_dict()}
         if additional_data: save_obj.update(additional_data)
 
         torch.save(obj=save_obj, f=ckpt_path)
@@ -715,7 +638,7 @@ class MOTorch(ParaSave):
                 loglevel=           loglevel)
             child.save()
 
-    # ***************************************************************************************************** train / test
+    # ******************************************************************** train / test, exposed _module methods to self
 
     def load_data(
             self,
@@ -745,16 +668,23 @@ class MOTorch(ParaSave):
 
     def run_train(
             self,
-            data_TR: Optional[Dict[str,np.ndarray]]=None,  # INFO: also accepts Dict[str,torch.Tensor]
+            data_TR: Optional[Dict[str,np.ndarray]]=None,
             data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=None,
             split_factor: float=        0.0,
             n_batches: Optional[int]=   None,
-            test_freq=                  100,    # number of batches between tests, model SHOULD BE tested while training
+            test_freq=                  100,
             mov_avg_factor=             0.1,
-            save_max=                   True,   # allows to save model while training (after max test)
-            use_F1=                     True,   # uses F1 as a train/test score (not acc)
+            save_max=                   True,
+            empty_cuda_cache: bool=     False,
         ) -> Optional[float]:
-        """ trains model, returns optional test score """
+        """trains model, returns optional test score
+
+        data_TR: accepts also Dict[str,torch.Tensor]
+        test_freq: number of batches between tests
+        save_max: saves model while training (after best test)
+        empty_cuda_cache: empties cuda cache every batch
+            may help reduce GPU memory usage, but
+            may increase loop time"""
 
         if data_TR:
             self.load_data(data_TR=data_TR, data_TS=data_TS, split_factor=split_factor)
@@ -765,19 +695,17 @@ class MOTorch(ParaSave):
         self._log.info(f'{self.name} - training starts [acc / F1 / loss]')
         self._log.info(f'data sizes (TR,VL,TS) samples: {self._batcher.get_data_size()}')
 
-        if n_batches is None: n_batches = self.n_batches  # take default
+        if n_batches is None: n_batches = self.n_batches
         self._log.info(f'batch size:             {self["batch_size"]}')
         self._log.info(f'train for num_batches:  {n_batches}')
 
-        batch_IX = 0                            # this loop (local) batch counter
-        tr_accL = []
-        tr_f1L = []
-        tr_lssL = []
+        batch_IX = 0  # this loop (local) batch counter
+        tr_metrics_accumulated = {}
 
-        score_name = 'F1' if use_F1 else 'acc'
-        ts_score_max = 0                        # test score (acc or F1) max
+        ts_score_name = self.module.default_score
+        ts_score_best = None                    # test score best value
         ts_score_all_results = []               # test score all results
-        ts_score_mav = MovAvg(mov_avg_factor)   # test score (acc or F1) moving average
+        ts_score_mav = MovAvg(mov_avg_factor)   # test score moving average
 
         # initial save
         if not self.read_only and save_max:
@@ -790,14 +718,13 @@ class MOTorch(ParaSave):
         if ten_factor < 1: ten_factor = 1 # we need at least one result
         if self.hpmser_mode: ts_bIX = ts_bIX[-ten_factor:]
 
+        _mode = self.training
+        self.train()
         while batch_IX < n_batches:
 
             out = self.backward(**self._batcher.get_batch(), bypass_data_conv=True)
-
+            tr_metrics = self.metrics(**out)
             loss = out['loss']
-            acc = out['acc'] if 'acc' in out else None
-            f1 = out['f1'] if 'f1' in out else None
-
             batch_IX += 1
 
             if self.do_TB:
@@ -805,14 +732,16 @@ class MOTorch(ParaSave):
                 self.log_TB(value=out['gg_norm'],      tag='tr/gn',      step=self.train_step)
                 self.log_TB(value=out['gg_norm_clip'], tag='tr/gn_clip', step=self.train_step)
                 self.log_TB(value=out['currentLR'],    tag='tr/cLR',     step=self.train_step)
-                if acc is not None:
-                    self.log_TB(value=acc,             tag='tr/acc',     step=self.train_step)
-                if f1 is not None:
-                    self.log_TB(value=f1,              tag='tr/F1',      step=self.train_step)
+                for k in tr_metrics:
+                    if k != 'loss':
+                        self.log_TB(value=k, tag=f'tr/{k}', step=self.train_step)
 
-            if acc is not None: tr_accL.append(acc)
-            if f1 is not None: tr_f1L.append(f1)
-            tr_lssL.append(loss)
+            if not tr_metrics_accumulated:
+                for k in tr_metrics:
+                    tr_metrics_accumulated[k] = []
+
+            for k in tr_metrics_accumulated:
+                tr_metrics_accumulated[k].append(tr_metrics[k])
 
             if batch_IX in ts_bIX:
 
@@ -821,46 +750,42 @@ class MOTorch(ParaSave):
 
                 for k in res:
 
-                    ts_loss, ts_acc, ts_f1 = res[k]
-
-                    ts_score = ts_f1 if use_F1 else ts_acc
-                    if ts_score is not None:
-                        ts_score_all_results.append(ts_score)
+                    ts_metrics = res[k]
+                    ts_score = ts_metrics[self.module.default_score]
+                    if ts_score_best is None:
+                        ts_score_best = ts_score
+                    ts_score_all_results.append(ts_score)
 
                     key_name = f'_{k}' if k != self._batcher.default_TS_name else ''
                     if self.do_TB:
-                        if ts_loss is not None:
-                            self.log_TB(value=ts_loss,                    tag=f'ts{key_name}/loss',              step=self.train_step)
-                        if ts_acc is not None:
-                            self.log_TB(value=ts_acc,                     tag=f'ts{key_name}/acc',               step=self.train_step)
-                        if ts_f1 is not None:
-                            self.log_TB(value=ts_f1,                      tag=f'ts{key_name}/F1',                step=self.train_step)
-                        if ts_score is not None:
-                            self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'ts{key_name}/{score_name}_mav', step=self.train_step)
+                        for mk in ts_metrics:
+                            self.log_TB(value=ts_metrics[mk], tag=f'ts{key_name}/{mk}', step=self.train_step)
+                        self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'ts{key_name}/{self.module.default_score}_mav', step=self.train_step)
 
-                    tr_acc_nfo = f'{100*sum(tr_accL)/test_freq:.1f}' if acc is not None else '--'
-                    tr_f1_nfo =  f'{100*sum(tr_f1L)/test_freq:.1f}' if f1 is not None else '--'
-                    tr_loss_nfo = f'{sum(tr_lssL)/test_freq:.3f}'
-                    ts_acc_nfo = f'{100*ts_acc:.1f}' if ts_acc is not None else '--'
-                    ts_f1_nfo = f'{100*ts_f1:.1f}' if ts_f1 is not None else '--'
-                    ts_loss_nfo = f'{ts_loss:.3f}' if ts_loss is not None else '--'
-                    self._log.info(f'# {self["train_step"]:5d} TR: {tr_acc_nfo} / {tr_f1_nfo} / {tr_loss_nfo} -- TS{key_name}: {ts_acc_nfo} / {ts_f1_nfo} / {ts_loss_nfo}')
-                    tr_accL = []
-                    tr_f1L = []
-                    tr_lssL = []
+                    tr_metrics_accumulated = {k:sum(tr_metrics_accumulated[k])/test_freq for k in tr_metrics_accumulated}
+                    self._log.info(f'# {self["train_step"]:5d} '
+                                   f'TR: {self.metrics_nice(tr_metrics_accumulated)} -- '
+                                   f'TS{key_name}: {self.metrics_nice(ts_metrics)}')
+                    tr_metrics_accumulated = {}
 
-                    # model is saved for max ts_score for the first_key (TS name)
-                    if k==first_key and ts_score is not None and ts_score > ts_score_max:
-                        ts_score_max = ts_score
+                    # model is saved for best ts_score for the first_key (TS name)
+                    if k==first_key and ts_score is not None and (
+                            (ts_score > ts_score_best and self.module.score_should_increase) or
+                            (ts_score < ts_score_best and not self.module.score_should_increase)):
+                        ts_score_best = ts_score
                         if not self.read_only and save_max:
                             self.save_ckpt()
 
+            if empty_cuda_cache:
+                torch.cuda.empty_cache()
+
+        self.train(_mode)
         self._log.info(f'### model {self.name} finished training')
 
         ts_score_fin = None
 
         if save_max:
-            ts_score_fin = ts_score_max
+            ts_score_fin = ts_score_best
             self.load_ckpt()
 
         # weighted (linear ascending weight) test score for last 10% test results
@@ -876,24 +801,22 @@ class MOTorch(ParaSave):
                 ts_score_fin /= sum_weight
 
         if ts_score_fin is not None:
-            self._log.info(f' > test_{score_name}_max: {ts_score_max:.4f}')
-            self._log.info(f' > test_{score_name}_fin: {ts_score_fin:.4f}')
+            self._log.info(f' > test_{ts_score_name}_max: {ts_score_best:.4f}')
+            self._log.info(f' > test_{ts_score_name}_fin: {ts_score_fin:.4f}')
             if self.do_TB:
-                self.log_TB(value=ts_score_fin, tag=f'ts/ts_{score_name}_fin', step=self.train_step)
+                self.log_TB(value=ts_score_fin, tag=f'ts/ts_{ts_score_name}_fin', step=self.train_step)
 
         return ts_score_fin
 
     def run_test(
             self,
             data: Optional[Dict[str,np.ndarray]]=   None,
-            split_factor: float=                    1.0, # if data for test will be given above, by default MOTorch will be tested on ALL
-    ) -> Dict[Union[str,None], Tuple[Optional[float], Optional[float], Optional[float]]]:
-        """ tests model
-        returns:
-            - optional loss (average)
-            - optional accuracy, optional F1
-            - optional loss <- since there may be not TS batches
-        """
+            split_factor: float=                    1.0,
+    ) -> Dict[str,DTNS]:
+        """tests model, returns dict {testset_name:DTNS} where DTNS are metrics"""
+
+        _mode = self.training
+        self.train(False)
 
         if data:
             self.load_data(data_TR=data, split_factor=split_factor)
@@ -902,27 +825,38 @@ class MOTorch(ParaSave):
             raise MOTorchException(f'{self.name} has not been given data for testing, use load_data() or give it while testing!')
 
         res = {}
-        for k in self._batcher.get_TS_names():
+        with torch.no_grad():
+            for tn in self._batcher.get_TS_names():
 
-            batches = self._batcher.get_TS_batches()
-            lossL = []
-            accL = []
-            f1L = []
-            n_all = 0
-            for batch in batches:
-                out = self.loss(**batch, bypass_data_conv=True)
-                n_new = len(out['logits'])
-                n_all += n_new
-                lossL.append(out['loss']*n_new)
-                if 'acc' in out: accL.append(out['acc']*n_new)
-                if 'f1' in out:  f1L.append(out['f1']*n_new)
+                n_all = 0
+                metrics_acc = {}
+                for batch in self._batcher.get_TS_batches(name=tn):
 
-            acc_avg = sum(accL)/n_all if accL else None
-            f1_avg = sum(f1L)/n_all if f1L else None
-            loss_avg = sum(lossL)/n_all if lossL else None
-            res[k] = loss_avg, acc_avg, f1_avg
+                    out = self.loss(**batch, bypass_data_conv=True)
+
+                    n_new = len(out['logits'])
+                    n_all += n_new
+
+                    metrics = self.metrics(**out)
+                    for k in metrics:
+                        if k not in metrics_acc:
+                            metrics_acc[k] = []
+                        metrics_acc[k].append(metrics[k]*n_new)
+
+                for k in metrics_acc:
+                    metrics_acc[k] = sum(torch.as_tensor(v) for v in metrics_acc[k]) / n_all
+
+                res[tn] = metrics_acc
+
+        self.train(_mode)
 
         return res
+
+    def metrics(self, **kwargs) -> DTNS:
+        return self.module.metrics(**kwargs)
+
+    def metrics_nice(self, metrics:DTNS) -> DTNS:
+        return self.module.metrics_nice(metrics=metrics)
 
     # *********************************************************************************************** other / properties
 
@@ -936,7 +870,11 @@ class MOTorch(ParaSave):
         return self._module
 
     def train(self, mode:bool=True):
-        return self._module.train(mode)
+        return self.module.train(mode)
+
+    @property
+    def training(self) -> bool:
+        return self.module.training
 
     @property
     def tbwr(self):
@@ -968,9 +906,9 @@ class MOTorch(ParaSave):
 
     @property
     def size(self) -> int:
-        return sum([p.numel() for p in self._module.parameters()])
+        return sum([p.numel() for p in self.module.parameters()])
 
     def __str__(self):
         s = f'{self.__class__.__name__} (MOTorch): {ParaSave.__str__(self)}\n'
-        s += f'{str(self._module)}\n ### model size: {self.size} params'
+        s += f'{str(self.module)}\n ### model size: {self.size} params'
         return s

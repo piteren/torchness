@@ -7,7 +7,7 @@ INI = Optional[Callable]                    # initializer type
 
 ARR = np.ndarray                            # numpy array
 TNS = torch.Tensor                          # torch Tensor
-DTNS = Dict[str, Union[TNS,Any]]            # dict {str: TNS or Any}
+DTNS = Dict[str, Union[TNS,Any]]            # dict {str: TNS|Any}
 
 NUM = Union[int, float, ARR, TNS]           # extends pypaq NUM with TNS
 NPL = Union[Sequence[NUM], ARR, TNS]        # extends pypaq NPL with TNS

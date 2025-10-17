@@ -1,9 +1,10 @@
 from pypaq.lipytools.stats import msmx
 from pypaq.lipytools.plots import histogram
+from sklearn.metrics import f1_score
 import torch
 from typing import Tuple, Optional
 
-from torchness.base import TNS, DTNS
+from torchness.base import TNS, DTNS, TorchnessException
 
 
 def min_max_probs(probs:TNS) -> DTNS:
@@ -104,8 +105,38 @@ def perplexity(logits:TNS, target:TNS) -> TNS:
     return ppx
 
 
-def accuracy(pred:TNS, target:TNS) -> TNS:
+def accuracy(
+        target: TNS,
+        pred: Optional[TNS],
+        logits: Optional[TNS],
+) -> TNS:
+    if (pred is None and logits is None) or (pred is not None and logits is not None):
+        raise TorchnessException("only one of 'pred' and 'logits' should be specified!")
+    if logits is not None:
+        pred = torch.argmax(logits, dim=-1)
     return (pred == target).to(torch.float).mean()
+
+def f1(
+        target: TNS,
+        pred: Optional[TNS],
+        logits: Optional[TNS],
+        average=    'weighted',
+) -> float:
+        """ baseline F1 implementation for logits & lables
+        'average' options:
+            micro (per sample)
+            macro (per class)
+            weighted (per class weighted by support) """
+        if (pred is None and logits is None) or (pred is not None and logits is not None):
+            raise TorchnessException("only one of 'pred' and 'logits' should be specified!")
+        if logits is not None:
+            pred = torch.argmax(logits, dim=-1)
+        return f1_score(
+            y_true=         target.cpu().numpy(),
+            y_pred=         pred.cpu().numpy(),
+            average=        average,
+            labels=         torch.unique(pred).cpu().numpy(),
+            zero_division=  0)
 
 
 def brier_score(probs:TNS, action_sampled:TNS, action_target:TNS):

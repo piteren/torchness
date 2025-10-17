@@ -1,6 +1,6 @@
 import numpy as np
 from pypaq.lipytools.pylogger import get_pylogger
-from pypaq.lipytools.printout import short_scin
+from pypaq.lipytools.printout import nice_scin
 import torch
 from typing import Optional, List
 
@@ -49,9 +49,9 @@ class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
             if a_steps > 0:
                 factor = self.a_base ** (a_steps * self.a_mul)
                 lrs *= factor
-                self.logger.debug(f'current annealing factor:{short_scin(factor)}')
+                self.logger.debug(f'current annealing factor:{nice_scin(factor)}')
 
-        self.logger.debug(f'ScaledLR scheduler step:{self._step}, resulting LR:{short_scin(lrs[0])}')
+        self.logger.debug(f'ScaledLR scheduler step:{self._step}, resulting LR:{nice_scin(lrs[0])}')
         return lrs.tolist()
 
     def step(self, epoch:Optional[int]=None):
