@@ -91,10 +91,10 @@ class BaseBatcher(ABC):
         self._TS_batches = {}
 
         self.logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
-        self.logger.info(f' > data_TR_len: {self._data_TR_len} - first chunk')
+        self.logger.info(f'> data_TR_len: {self._data_TR_len} - loaded (first?) chunk')
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
-            self.logger.info(f' > data_TS names: {list(self._data_TS.keys())}')
-        self.logger.info(f' > data_TS_len: {self._data_TS_len}')
+            self.logger.info(f'> data_TS names: {list(self._data_TS.keys())}')
+        self.logger.info(f'> data_TS_len: {self._data_TS_len}')
         self.logger.debug('> Batcher (batch) keys:')
         for k in self._keys:
             self.logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')

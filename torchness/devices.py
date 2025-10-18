@@ -224,7 +224,7 @@ def monitor(pause:float=0.1, print_n:int=10):
                 peaks_mem[_id] = mem
 
             s += f'{_id}:{load}%/{int(mem)}MB '
-        s += f' >>> peak: '
+        s += f'>>> peak: '
         for _id in peaks_load:
             s += f'{_id}:{peaks_load[_id]}%/{peaks_mem[_id]}MB '
 

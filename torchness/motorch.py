@@ -3,7 +3,7 @@ import shutil
 import torch
 from typing import Optional, Dict, Tuple, Any, Union
 
-from pypaq.lipytools.printout import stamp
+from pypaq.lipytools.printout import stamp, ProgBar
 from pypaq.lipytools.files import prep_folder
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
@@ -24,10 +24,10 @@ class MOTorchException(Exception):
 
 
 class Module(torch.nn.Module):
-    """ NN Module class supported by MOTorch
+    """NN Module class supported by MOTorch
 
-    default_score - name of metric used to compare modules
-    score_should_increase - direction of score improvement """
+    default_score: name of metric used to compare modules
+    score_should_increase: direction of score improvement"""
 
     default_score = 'f1'
     score_should_increase = True
@@ -84,7 +84,7 @@ class Module(torch.nn.Module):
 
 
 class MOTorch(ParaSave):
-    """ MOTorch holds Neural Network (NN) computation graph defined by Module
+    """MOTorch holds Neural Network (NN) computation graph defined by Module
 
     - builds given graph defined by Module
     - manages MOTorch folder (subfolder of SAVE_TOPDIR named with MOTorch name)
@@ -104,10 +104,8 @@ class MOTorch(ParaSave):
     - manages:
         - devices: GPU / CPU with device: DevicesTorchness parameter
         - seed -> guarantees reproducibility
-        - training mode (can be overridden by user)
         - data format / type preparation (to be compatible with Module)
-        - automatic gradient computation switching while inference training
-    - implements forward (FWD) call (with __call__)
+    - implements forward (FWD, with __call__) and loss call
     - implements backward (BWD) call -> runs gradient computation, clipping and backprop with given data
 
     - implements baseline training & testing with data loaded to Batcher
@@ -126,7 +124,7 @@ class MOTorch(ParaSave):
     If all MOTorch parameters were set with __init__ defaults,
     it would not be possible to distinguish between sources 1 and 4.
 
-    @DynamicAttrs <-- disables warning for unresolved attributes references """
+    @DynamicAttrs <-- disables warning for unresolved attributes references"""
 
     MOTORCH_DEFAULTS = {
         'seed':             123,                # seed for torch and numpy
@@ -201,24 +199,22 @@ class MOTorch(ParaSave):
 
         _read_only = kwargs.get('read_only', False)
 
-        if not logger:
-            logger = get_pylogger(
-                name=       name,
-                add_stamp=  False,
-                folder=     None if _read_only else self._get_model_dir(model_name=name, save_topdir=save_topdir),
-                level=      loglevel,
-                flat_child= flat_child)
-        self._log = logger
+        self.logger = logger or get_pylogger(
+            name=       name,
+            add_stamp=  False,
+            folder=     None if _read_only else self._get_model_dir(model_name=name, save_topdir=save_topdir),
+            level=      loglevel,
+            flat_child= flat_child)
 
-        self._log.info(f'*** MOTorch : {name} *** initializes ..')
-        self._log.info(f'> {name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
+        self.logger.info(f'*** MOTorch : {name} *** initializes ..')
+        self.logger.info(f'> {name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
 
         # init as a ParaSave
         super().__init__(
             name=           name,
             save_topdir=    save_topdir,
             save_fn_pfx=    save_fn_pfx,
-            logger=         get_child(self._log, 'ParaSave_logger'),
+            logger=         get_child(self.logger, 'ParaSave_logger'),
             **kwargs)
         point_saved = self.get_point()
 
@@ -230,14 +226,14 @@ class MOTorch(ParaSave):
 
         if not module_type and not module_type_saved:
             msg = 'module_type was not given and has not been found in saved, cannot continue!'
-            self._log.error(msg)
+            self.logger.error(msg)
             raise MOTorchException(msg)
 
         if module_type and module_type_saved and module_type != module_type_saved:
-            self._log.info('given module_type differs from module_type found in saved, using saved')
+            self.logger.info('given module_type differs from module_type found in saved, using saved')
 
         module_type = module_type_saved or module_type
-        self._log.info(f'> {self.name} module_type: {module_type.__name__}')
+        self.logger.info(f'> {self.name} module_type: {module_type.__name__}')
 
         _module_init_def = get_class_init_params(module_type)['with_defaults'] # defaults of self.module_type.__init__
 
@@ -259,34 +255,33 @@ class MOTorch(ParaSave):
 
         # device parameter, may be given to MOTorch in DevicesTorchness type
         # it is cast to PyTorch namespace here
-        self._log.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
-        self._log.debug(f'> torch.cuda.is_available(): {torch.cuda.is_available()}')
+        self.logger.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
+        self.logger.debug(f'> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(
             devices=            self._point["device"],
             torch_namespace=    True,
-            logger=             get_child(self._log, 'get_devices'))
+            logger=             get_child(self.logger, 'get_devices'))
         if not devices:
-            self._log.warning(f'given device: {self._point["device"]} is not available, using CPU')
+            self.logger.warning(f'given device: {self._point["device"]} is not available, using CPU')
             devices = ['cpu']
         device = devices[0]
-        self._log.info(f'> {self.name} given devices: {self._point["device"]}, will use: {device}')
+        self.logger.info(f'> {self.name} given devices: {self._point["device"]}, will use: {device}')
         self._point['device'] = device
 
         ### prepare Module point and extract not used kwargs
 
         self._module_point = point_trim(module_type, self._point)
-        self._module_point['logger'] = get_child(self._log, 'Module_logger')
+        self._module_point['logger'] = get_child(self.logger, 'Moduleloggerger')
 
-        ### report
-
-        self._log.debug(f'{self.name} POINT sources:')
-        self._log.debug(f'> PARASAVE_DEFAULTS:        {ParaSave.PARASAVE_DEFAULTS}')
-        self._log.debug(f'> MOTORCH_DEFAULTS:         {self.MOTORCH_DEFAULTS}')
-        self._log.debug(f'> Module.__init__ defaults: {_module_init_def}')
-        self._log.debug(f'> POINT saved:              {point_saved}')
-        self._log.debug(f'> given kwargs:             {kwargs}')
-        self._log.debug(f'Module complete POINT:      {self._module_point}')
-        self._log.debug(f'MOTorch complete POINT:     {self._point}')
+        rep = (f'{self.name} POINT sources:\n'
+               f'> PARASAVE_DEFAULTS:        {ParaSave.PARASAVE_DEFAULTS}\n'
+               f'> MOTORCH_DEFAULTS:         {self.MOTORCH_DEFAULTS}\n'
+               f'> Module.__init__ defaults: {_module_init_def}\n'
+               f'> POINT saved:              {point_saved}\n'
+               f'> given kwargs:             {kwargs}\n'
+               f'Module complete POINT:      {self._module_point}\n'
+               f'MOTorch complete POINT:     {self._point}')
+        self.logger.debug(rep)
 
         _kwargs_not_used = {}
         out = get_class_init_params(MOTorch)
@@ -296,16 +291,16 @@ class MOTorch(ParaSave):
             if k not in self._module_point and k not in motorch_params_all:
                 _kwargs_not_used[k] = kwargs[k]
         if _kwargs_not_used:
-            self._log.warning(f'> there are kwargs given but not used by MOTorch nor Module: {_kwargs_not_used}')
+            self.logger.warning(f'> there are kwargs given but not used by MOTorch nor Module: {_kwargs_not_used}')
 
         self.update(self._point)
 
         # parameters names safety check
         found = self.check_params_sim(params=list(self.MOTORCH_DEFAULTS.keys()) + list(kwargs.keys()))
         if found:
-            self._log.warning(f'{self.name} (MOTorch) was asked to check for params similarity and found:')
+            self.logger.warning(f'{self.name} (MOTorch) was asked to check for params similarity and found:')
             for pa, pb in found:
-                self._log.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
+                self.logger.warning(f'> params \'{pa}\' and \'{pb}\' are close !!!')
 
         # set seed in all possible areas (https://pytorch.org/docs/stable/notes/randomness.html)
         torch.manual_seed(self.seed)
@@ -315,33 +310,33 @@ class MOTorch(ParaSave):
 
         ### build MOTorch Module
 
-        self._log.info(f'{self.name} builds graph of {self.module_type.__name__}')
+        self.logger.info(f'{self.name} builds graph of {self.module_type.__name__}')
         self._module = self.module_type(**self._module_point)
 
         if self.try_load_ckpt:
             self.load_ckpt()
         else:
-            self._log.info(f'> {self.name} checkpoint not loaded, not even tried because \'try_load_ckpt\' was set to {self.try_load_ckpt}')
+            self.logger.info(f'> {self.name} checkpoint not loaded, not even tried because \'try_load_ckpt\' was set to {self.try_load_ckpt}')
 
-        self._log.debug(f'> moving {self.name} to device: {self.device}, dtype: {self.dtype}')
+        self.logger.debug(f'> moving {self.name} to device: {self.device}, dtype: {self.dtype}')
         self.module.to(self.device)
         self.module.to(self.dtype)
 
-        self._log.debug(f'{self.name} Module initialized!')
+        self.logger.debug(f'{self.name} Module initialized!')
 
         ### resolve optimizer
 
         opt_kwargs = {}
         try:
             self.opt_class, opt_kwargs = self.module.get_optimizer_definition()
-            self._log.debug(f'using optimizer from Module: {self.opt_class.__name__}, Module optimizer kwargs: {opt_kwargs}')
+            self.logger.debug(f'using optimizer from Module: {self.opt_class.__name__}, Module optimizer kwargs: {opt_kwargs}')
         except MOTorchException:
-            self._log.debug(f'using optimizer resolved by MOTorch: {self.opt_class.__name__}')
+            self.logger.debug(f'using optimizer resolved by MOTorch: {self.opt_class.__name__}')
 
         opt_kwargs['params'] = self.module.parameters()
         opt_kwargs['lr'] = self.baseLR
         self._opt = self.opt_class(**opt_kwargs)
-        self._log.debug(f'MOTorch optimizer:\n{self._opt}')
+        self.logger.debug(f'MOTorch optimizer:\n{self._opt}')
 
         # from now LR is managed by scheduler
         self._scheduler = ScaledLR(
@@ -351,7 +346,7 @@ class MOTorch(ParaSave):
             anneal_start=   self.anneal_start,
             anneal_base=    self.anneal_base,
             anneal_mul=     self.anneal_mul,
-            logger=         get_child(self._log, 'ScaledLR'))
+            logger=         get_child(self.logger, 'ScaledLR'))
 
         self._grad_clipper = GradClipperMAVG(
             do_clip=        self.gc_do_clip,
@@ -361,11 +356,11 @@ class MOTorch(ParaSave):
             first_avg=      self.gc_first_avg,
             max_clip=       self.gc_max_clip,
             max_upd=        self.gc_max_upd,
-            logger=         get_child(self._log, 'GradClipperMAVG'))
+            logger=         get_child(self.logger, 'GradClipperMAVG'))
 
         # MOTorch by default is not in training mode
         self.train(False)
-        self._log.debug(f'> set {self.name} train.mode to False ..')
+        self.logger.debug(f'> set {self.name} train.mode to False ..')
 
         # TensorBoard writer
         self._TBwr = tbwr or TBwr(
@@ -375,8 +370,8 @@ class MOTorch(ParaSave):
 
         self._batcher = None
 
-        self._log.debug(str(self))
-        self._log.info(f'MOTorch init finished!')
+        self.logger.debug(str(self))
+        self.logger.info(f'MOTorch init finished!')
 
     @classmethod
     def _get_name(
@@ -471,10 +466,10 @@ class MOTorch(ParaSave):
         try:
             save_obj = torch.load(f=ckpt_path, map_location=self.device, weights_only=True) # immediately place all tensors to current device (not previously saved one)
             self.module.load_state_dict(save_obj.pop('model_state_dict'))
-            self._log.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
+            self.logger.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
             # this exception logs as INFO since it is quite normal to not load checkpoint while init
-            self._log.info(f'> {self.name} checkpoint NOT loaded because of exception: {e}')
+            self.logger.info(f'> {self.name} checkpoint NOT loaded because of exception: {e}')
 
         return save_obj
 
@@ -507,7 +502,7 @@ class MOTorch(ParaSave):
 
         self.save_point()
         self.save_ckpt()
-        self._log.info(f'{self.__class__.__name__} {self.name} saved to {self.save_topdir}')
+        self.logger.info(f'{self.__class__.__name__} {self.name} saved to {self.save_topdir}')
 
     @classmethod
     def copy_checkpoint(
@@ -664,7 +659,7 @@ class MOTorch(ParaSave):
             batch_size=     self.batch_size,
             batching_type=  'random',
             seed=           self.seed,
-            logger=         get_child(self._log, 'Batcher'))
+            logger=         get_child(self.logger, 'Batcher'))
 
     def run_train(
             self,
@@ -692,14 +687,13 @@ class MOTorch(ParaSave):
         if not self._batcher:
             raise MOTorchException(f'{self.name} has not been given data for training, use load_data()')
 
-        self._log.info(f'{self.name} - training starts [acc / F1 / loss]')
-        self._log.info(f'data sizes (TR,VL,TS) samples: {self._batcher.get_data_size()}')
-
         if n_batches is None: n_batches = self.n_batches
-        self._log.info(f'batch size:             {self["batch_size"]}')
-        self._log.info(f'train for num_batches:  {n_batches}')
+        nfo = (f'{self.name} - training starts\n'
+               f'> data sizes (TR,VL,TS) samples: {self._batcher.get_data_size()}\n'
+               f'> batch size: {self["batch_size"]}\n'
+               f'> n_batches: {n_batches}')
+        self.logger.info(nfo)
 
-        batch_IX = 0  # this loop (local) batch counter
         tr_metrics_accumulated = {}
 
         ts_score_name = self.module.default_score
@@ -720,6 +714,8 @@ class MOTorch(ParaSave):
 
         _mode = self.training
         self.train()
+        prog = ProgBar(n_batches, name=f"{self.name} train", logger=self.logger)
+        batch_IX = 0
         while batch_IX < n_batches:
 
             out = self.backward(**self._batcher.get_batch(), bypass_data_conv=True)
@@ -728,13 +724,13 @@ class MOTorch(ParaSave):
             batch_IX += 1
 
             if self.do_TB:
-                self.log_TB(value=loss,                tag='tr/loss',    step=self.train_step)
-                self.log_TB(value=out['gg_norm'],      tag='tr/gn',      step=self.train_step)
-                self.log_TB(value=out['gg_norm_clip'], tag='tr/gn_clip', step=self.train_step)
-                self.log_TB(value=out['currentLR'],    tag='tr/cLR',     step=self.train_step)
+                self.log_TB(value=loss,                tag='TR/loss',    step=self.train_step)
+                self.log_TB(value=out['gg_norm'],      tag='TR/gn',      step=self.train_step)
+                self.log_TB(value=out['gg_norm_clip'], tag='TR/gn_clip', step=self.train_step)
+                self.log_TB(value=out['currentLR'],    tag='TR/cLR',     step=self.train_step)
                 for k in tr_metrics:
                     if k != 'loss':
-                        self.log_TB(value=k, tag=f'tr/{k}', step=self.train_step)
+                        self.log_TB(value=k, tag=f'TR/{k}', step=self.train_step)
 
             if not tr_metrics_accumulated:
                 for k in tr_metrics:
@@ -763,9 +759,9 @@ class MOTorch(ParaSave):
                         self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'ts{key_name}/{self.module.default_score}_mav', step=self.train_step)
 
                     tr_metrics_accumulated = {k:sum(tr_metrics_accumulated[k])/test_freq for k in tr_metrics_accumulated}
-                    self._log.info(f'# {self["train_step"]:5d} '
-                                   f'TR: {self.metrics_nice(tr_metrics_accumulated)} -- '
-                                   f'TS{key_name}: {self.metrics_nice(ts_metrics)}')
+                    prog_nfo = (f'TR: {self.metrics_nice(tr_metrics_accumulated)} -- '
+                                f'TS{key_name}: {self.metrics_nice(ts_metrics)}')
+                    prog(n=batch_IX, prefix=prog_nfo)
                     tr_metrics_accumulated = {}
 
                     # model is saved for best ts_score for the first_key (TS name)
@@ -780,12 +776,11 @@ class MOTorch(ParaSave):
                 torch.cuda.empty_cache()
 
         self.train(_mode)
-        self._log.info(f'### model {self.name} finished training')
 
         ts_score_fin = None
-
         if save_max:
             ts_score_fin = ts_score_best
+            self.logger.info(f"loading {self.name} checkpoint saved for max score ..")
             self.load_ckpt()
 
         # weighted (linear ascending weight) test score for last 10% test results
@@ -801,10 +796,10 @@ class MOTorch(ParaSave):
                 ts_score_fin /= sum_weight
 
         if ts_score_fin is not None:
-            self._log.info(f' > test_{ts_score_name}_max: {ts_score_best:.4f}')
-            self._log.info(f' > test_{ts_score_name}_fin: {ts_score_fin:.4f}')
+            self.logger.info(f'> test_{ts_score_name}_best: {ts_score_best}')
+            self.logger.info(f'> test_{ts_score_name}_fin:  {ts_score_fin}')
             if self.do_TB:
-                self.log_TB(value=ts_score_fin, tag=f'ts/ts_{ts_score_name}_fin', step=self.train_step)
+                self.log_TB(value=ts_score_fin, tag=f'TS/ts_{ts_score_name}_fin', step=self.train_step)
 
         return ts_score_fin
 
@@ -886,7 +881,7 @@ class MOTorch(ParaSave):
             step = self.train_step
         if self.do_TB:
             self._TBwr.add(value=value, tag=tag, step=step)
-        else: self._log.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
+        else: self.logger.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
 
     def log_histogram_TB(self, values, tag:str, step:Optional[int]=None, bins="tensorflow"):
         """ logs values to TB histogram """
@@ -894,11 +889,7 @@ class MOTorch(ParaSave):
             step = self.train_step
         if self.do_TB:
             self._TBwr.add_histogram(values=values, tag=tag, step=step, bins=bins)
-        else: self._log.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
-
-    @property
-    def logger(self):
-        return self._log
+        else: self.logger.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
 
     @property
     def optimizer(self):
