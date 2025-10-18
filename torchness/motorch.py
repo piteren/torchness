@@ -27,9 +27,10 @@ class Module(torch.nn.Module):
     """NN Module class supported by MOTorch
 
     default_score: name of metric used to compare modules
-    score_should_increase: direction of score improvement"""
-
+    default_score_format: formatting of default_score for nice print
+    score_should_increase: direction of score improvement, e.g for loss False"""
     default_score = 'f1'
+    default_score_format = '.5f'
     score_should_increase = True
 
     def __init__(self, logger=None, loglevel=20):
@@ -39,48 +40,41 @@ class Module(torch.nn.Module):
         self.logger = logger
 
     def get_optimizer_definition(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
-        """ if implemented, MOTorch will use Optimizer definition returned:
+        """if implemented, MOTorch will use Optimizer definition returned:
         Tuple[optimizer type, optimizer kwargs]
 
         * optimizer class may be given with kwarg (opt_class) to MOTorch,
-        but if it is needed to define optimizer with its kwargs, this is the way """
+        but if it is needed to define optimizer with its kwargs, this is the way"""
         raise MOTorchException(f'get_optimizer_definition not implemented for {self.__class__.__name__}')
 
     def forward(self, **kwargs) -> DTNS:
-        """ forward (FWD) pass
+        """forward (FWD) pass
         returned DTNS should have at least 'logits' key
 
         exemplary implementation:
-        return {'logits': self.logits(**kwargs)} """
+        return {'logits': self.logits(**kwargs)}"""
         raise MOTorchException(f'forward not implemented for {self.__class__.__name__}')
 
     def loss(self, **kwargs) -> DTNS:
-        """ forward (FWD) pass + loss
+        """forward (FWD) pass + loss
         returned DTNS should be: .forward() DTNS updated with 'loss'
 
         exemplary implementation:
         out = self(**kwargs)
         out['true'] = kwargs['true']
         out['loss'] = torch.nn.functional.cross_entropy(out['logits'], out['true'], reduction='mean')
-        return out """
+        return out"""
         raise MOTorchException(f'loss not implemented for {self.__class__.__name__}')
 
     # noinspection PyMethodMayBeStatic
     def metrics(self, **kwargs) -> DTNS:
-        """ default implementation for [loss, acc, f1] for a classification model """
+        """module metrics computation based on self.loss() output
+        default implementation for [loss, acc, f1] for a classification model"""
         pred = torch.argmax(kwargs['logits'], dim=-1)
         return {
             'loss': kwargs['loss'],
             'accuracy': accuracy(target=kwargs['true'], pred=pred, logits=None),
             'f1': f1(target=kwargs['true'], pred=pred, logits=None, average='weighted')}
-
-    # noinspection PyMethodMayBeStatic
-    def metrics_nice(self, metrics:DTNS) -> str:
-        """ str representation of metrics used by MOTorch.run_train() """
-        s = []
-        for k in metrics:
-            s.append(f"{k}:{metrics[k]:.4f}")
-        return " ".join(metrics)
 
 
 class MOTorch(ParaSave):
@@ -383,7 +377,7 @@ class MOTorch(ParaSave):
             name: Optional[str]=                    None,
             name_timestamp=                         False,
     ) -> str:
-        """ resolves MOTorch name """
+        """resolves MOTorch name"""
         # resolve name
         if not name:
             name = f'{module_type.__name__}_{cls.__name__}'
@@ -394,7 +388,7 @@ class MOTorch(ParaSave):
     # **************************************************************************** model call (run NN with data) methods
 
     def convert(self, data:Any) -> TNS:
-        """ converts given data to TNS compatible with self (device,dtype) """
+        """converts given data to TNS compatible with self (device,dtype)"""
 
         # do not convert None
         if type(data) is not None:
@@ -423,7 +417,7 @@ class MOTorch(ParaSave):
         return self.module.loss(*args, **kwargs)
 
     def backward(self, *args, bypass_data_conv=False, **kwargs) -> DTNS:
-        """ backward call on NN, runs loss calculation + update parameters of NN with optimizer """
+        """backward call on NN, runs loss calculation + update parameters of NN with optimizer"""
 
         out = self.loss(*args, bypass_data_conv=bypass_data_conv, **kwargs)
 
@@ -443,13 +437,13 @@ class MOTorch(ParaSave):
 
     @classmethod
     def _get_model_dir(cls, model_name:str, save_topdir:Optional[str]=None) -> str:
-        """ returns model directory path """
+        """returns model directory path"""
         if not save_topdir: save_topdir = cls.SAVE_TOPDIR
         return f'{save_topdir}/{model_name}'
 
     @classmethod
     def _get_ckpt_path(cls, model_name:str, save_topdir:Optional[str]=None) -> str:
-        """ returns path of checkpoint pickle file """
+        """returns path of checkpoint pickle file"""
         model_dir = cls._get_model_dir(model_name=model_name, save_topdir=save_topdir)
         return f'{model_dir}/{model_name}.pt'
 
@@ -458,7 +452,7 @@ class MOTorch(ParaSave):
             name: Optional[str]=        None,  # allows to load custom name (model_name)
             save_topdir: Optional[str]= None,  # allows to load from custom save_topdir
     ) -> Optional[dict]:
-        """ tries to load checkpoint and return additional data """
+        """tries to load checkpoint and return additional data"""
 
         ckpt_path = self._get_ckpt_path(
             model_name=     name or self.name,
@@ -482,7 +476,7 @@ class MOTorch(ParaSave):
             save_topdir: Optional[str]=         None,   # allows to save in custom save_topdir
             additional_data: Optional[Dict]=    None,   # allows to save additional
     ) -> None:
-        """ saves model checkpoint & optionally additional data """
+        """saves model checkpoint & optionally additional data"""
 
         ckpt_path = self._get_ckpt_path(
             model_name=     name or self.name,
@@ -494,7 +488,7 @@ class MOTorch(ParaSave):
         torch.save(obj=save_obj, f=ckpt_path)
 
     def save(self):
-        """ saves MOTorch (ParaSave POINT and model checkpoint) """
+        """saves MOTorch (ParaSave POINT and model checkpoint)"""
 
         if self.read_only:
             raise MOTorchException('read_only MOTorch cannot be saved!')
@@ -531,7 +525,7 @@ class MOTorch(ParaSave):
             device=                         None,
             logger=                         None,
             loglevel=                       30):
-        """ copies full MOTorch folder (POINT & checkpoints) """
+        """copies full MOTorch folder (POINT & checkpoints)"""
 
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
         if save_topdir_trg is None: save_topdir_trg = save_topdir_src
@@ -567,7 +561,7 @@ class MOTorch(ParaSave):
             ratio: float=                       0.5,
             noise: float=                       0.03,
     ):
-        """ GX on 2 checkpoints only of saved 2 MOTorch """
+        """GX on 2 checkpoints only of saved 2 MOTorch"""
 
         if not save_topdirA: save_topdirA = cls.SAVE_TOPDIR
         if not save_topdirB: save_topdirB = save_topdirA
@@ -599,7 +593,7 @@ class MOTorch(ParaSave):
             logger=                             None,
             loglevel=                           30,
     ) -> None:
-        """ performs GX on saved MOTorch """
+        """performs GX on saved MOTorch"""
 
         if not save_topdir_parentA: save_topdir_parentA = cls.SAVE_TOPDIR
         if not save_fn_pfx: save_fn_pfx = cls.SAVE_FN_PFX
@@ -643,7 +637,7 @@ class MOTorch(ParaSave):
             data_TR: Dict[str,np.ndarray],
             data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
             split_factor: float=                                                0.0):
-        """ converts and loads data to Batcher """
+        """converts and loads data to Batcher"""
 
         data_TR = {k: self.convert(data_TR[k]) for k in data_TR}
 
@@ -691,7 +685,7 @@ class MOTorch(ParaSave):
             raise MOTorchException(f'{self.name} has not been given data for training, use load_data()')
 
         if n_batches is None: n_batches = self.n_batches
-        nfo = (f'{self.name} - training starts\n'
+        nfo = (f'{self.name} training starts:\n'
                f'> data sizes (TR,VL,TS) samples: {self._batcher.get_data_size()}\n'
                f'> batch size: {self["batch_size"]}\n'
                f'> n_batches: {n_batches}')
@@ -714,6 +708,9 @@ class MOTorch(ParaSave):
         ten_factor = int(0.1*len(ts_bIX)) # number of tests for last 10% of training
         if ten_factor < 1: ten_factor = 1 # we need at least one result
         if self.hpmser_mode: ts_bIX = ts_bIX[-ten_factor:]
+
+        _ds = self.module.default_score
+        _dsf = self.module.default_score_format
 
         _mode = self.training
         self.train()
@@ -750,20 +747,24 @@ class MOTorch(ParaSave):
                 for k in res:
 
                     ts_metrics = res[k]
-                    ts_score = ts_metrics[self.module.default_score]
+                    ts_score = ts_metrics[_ds]
                     if ts_score_best is None:
                         ts_score_best = ts_score
                     ts_score_all_results.append(ts_score)
+
+                    tr_metrics_accumulated = {k: sum(tr_metrics_accumulated[k]) / test_freq for k in tr_metrics_accumulated}
+                    _ds_gain = ts_metrics[_ds]-tr_metrics_accumulated[_ds]
 
                     key_name = f'_{k}' if k != self._batcher.default_TS_name else ''
                     if self.do_TB:
                         for mk in ts_metrics:
                             self.log_TB(value=ts_metrics[mk], tag=f'TS{key_name}/{mk}', step=self.train_step)
-                        self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'TS{key_name}/{self.module.default_score}_mav', step=self.train_step)
+                        self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'TS{key_name}/{_ds}_mav', step=self.train_step)
+                        self.log_TB(value=_ds_gain, tag=f'TS{key_name}/{_ds}_gain', step=self.train_step)
 
-                    tr_metrics_accumulated = {k:sum(tr_metrics_accumulated[k])/test_freq for k in tr_metrics_accumulated}
-                    prog_nfo = (f'TR: {self.metrics_nice(tr_metrics_accumulated)} -- '
-                                f'TS{key_name}: {self.metrics_nice(ts_metrics)}')
+                    _tr_nfo = f'{_ds}:{tr_metrics_accumulated[_ds]:{_dsf}}'
+                    _ts_nfo = f'{_ds}:{ts_metrics[_ds]:{_dsf}} {_ds}_gain:{_ds_gain:{_dsf}}'
+                    prog_nfo = f'TR: {_tr_nfo} -- TS{key_name}: {_ts_nfo}'
                     prog(n=batch_IX, prefix=prog_nfo)
                     tr_metrics_accumulated = {}
 
@@ -853,13 +854,10 @@ class MOTorch(ParaSave):
     def metrics(self, **kwargs) -> DTNS:
         return self.module.metrics(**kwargs)
 
-    def metrics_nice(self, metrics:DTNS) -> DTNS:
-        return self.module.metrics_nice(metrics=metrics)
-
     # *********************************************************************************************** other / properties
 
     def update_baseLR(self, lr: float):
-        """ updates scheduler baseLR of 0 group """
+        """updates scheduler baseLR of 0 group"""
         self.baseLR = lr
         self._scheduler.update_base_lr0(lr)
 
@@ -875,7 +873,7 @@ class MOTorch(ParaSave):
         return self._TBwr
 
     def log_TB(self, value, tag:str, step:Optional[int]=None):
-        """ logs value to TB """
+        """logs value to TB"""
         if step is None:
             step = self.train_step
         if self.do_TB:
@@ -883,7 +881,7 @@ class MOTorch(ParaSave):
         else: self.logger.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
 
     def log_histogram_TB(self, values, tag:str, step:Optional[int]=None, bins="tensorflow"):
-        """ logs values to TB histogram """
+        """logs values to TB histogram"""
         if step is None:
             step = self.train_step
         if self.do_TB:
