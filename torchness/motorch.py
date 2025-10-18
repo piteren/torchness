@@ -1,7 +1,7 @@
 import numpy as np
 import shutil
 import torch
-from typing import Optional, Dict, Tuple, Any, Union
+from typing import Optional, Dict, Tuple, Any, Union, List
 
 from pypaq.lipytools.printout import stamp, ProgBar
 from pypaq.lipytools.files import prep_folder
@@ -311,7 +311,7 @@ class MOTorch(ParaSave):
         ### build MOTorch Module
 
         self.logger.info(f'{self.name} builds graph of {self.module_type.__name__}')
-        self._module = self.module_type(**self._module_point)
+        self.module = self.module_type(**self._module_point)
 
         if self.try_load_ckpt:
             self.load_ckpt()
@@ -372,6 +372,9 @@ class MOTorch(ParaSave):
 
         self.logger.debug(str(self))
         self.logger.info(f'MOTorch init finished!')
+
+    def exclude_from_params(self) -> List[str]:
+        return super().exclude_from_params() + ['module']
 
     @classmethod
     def _get_name(
@@ -633,7 +636,7 @@ class MOTorch(ParaSave):
                 loglevel=           loglevel)
             child.save()
 
-    # ******************************************************************** train / test, exposed _module methods to self
+    # ******************************************************************** train / test, exposed module methods to self
 
     def load_data(
             self,
@@ -755,8 +758,8 @@ class MOTorch(ParaSave):
                     key_name = f'_{k}' if k != self._batcher.default_TS_name else ''
                     if self.do_TB:
                         for mk in ts_metrics:
-                            self.log_TB(value=ts_metrics[mk], tag=f'ts{key_name}/{mk}', step=self.train_step)
-                        self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'ts{key_name}/{self.module.default_score}_mav', step=self.train_step)
+                            self.log_TB(value=ts_metrics[mk], tag=f'TS{key_name}/{mk}', step=self.train_step)
+                        self.log_TB(value=ts_score_mav.upd(ts_score), tag=f'TS{key_name}/{self.module.default_score}_mav', step=self.train_step)
 
                     tr_metrics_accumulated = {k:sum(tr_metrics_accumulated[k])/test_freq for k in tr_metrics_accumulated}
                     prog_nfo = (f'TR: {self.metrics_nice(tr_metrics_accumulated)} -- '
@@ -860,10 +863,6 @@ class MOTorch(ParaSave):
         self.baseLR = lr
         self._scheduler.update_base_lr0(lr)
 
-    @property
-    def module(self):
-        return self._module
-
     def train(self, mode:bool=True):
         return self.module.train(mode)
 
@@ -897,6 +896,7 @@ class MOTorch(ParaSave):
 
     @property
     def size(self) -> int:
+        """returns number of module parameters"""
         return sum([p.numel() for p in self.module.parameters()])
 
     def __str__(self):
