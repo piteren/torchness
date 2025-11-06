@@ -51,10 +51,9 @@ def get_available_cuda_id(
         mem_free: int=      4000,
         load_max: float=    1.0,
 ) -> List[int]:
-    """ returns list of available GPUs ids, ordered by free memory
-    device is available if:
-    - has at least mem_free (MB)
-    - load <= load_max """
+    """ returns list of available GPUs ids, ordered from the highest free memory
+    mem_free: (MB) amount of free GPU RAM to consider device available
+    load_max: 0.0-1.0 factor of max GPU load to consider device available"""
     cuda_devices = [(device.id, int(device.memoryFree), device.load) for device in GPUtil.getGPUs()]
     cuda_devices = [d for d in cuda_devices if d[1] >= mem_free and d[2] <= load_max]
     cuda_devices.sort(key=lambda x:x[1], reverse=True)
