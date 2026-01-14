@@ -686,7 +686,7 @@ class MOTorch(ParaSave):
 
         if n_batches is None: n_batches = self.n_batches
         nfo = (f'{self.name} training starts:\n'
-               f'> data sizes (TR,VL,TS) samples: {self._batcher.get_data_size()}\n'
+               f'> data sizes (TR,TS) samples: {self._batcher.get_data_size()}\n'
                f'> batch size: {self["batch_size"]}\n'
                f'> n_batches: {n_batches}')
         self.logger.info(nfo)
@@ -730,7 +730,7 @@ class MOTorch(ParaSave):
                 self.log_TB(value=out['currentLR'],    tag='TR/cLR',     step=self.train_step)
                 for k in tr_metrics:
                     if k != 'loss':
-                        self.log_TB(value=k, tag=f'TR/{k}', step=self.train_step)
+                        self.log_TB(value=tr_metrics[k], tag=f'TR/{k}', step=self.train_step)
 
             if not tr_metrics_accumulated:
                 for k in tr_metrics:
