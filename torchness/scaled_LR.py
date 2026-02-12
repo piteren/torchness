@@ -13,7 +13,7 @@ class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
             self,
             optimizer,
             step: int=                      0,      # current step (to start with)
-            warmup_end: int=                1000,   # warm-up starts at 0 step and goes for warmup_end steps
+            warmup_end: Optional[int]=      1000,   # warm-up starts at 0 step and goes for warmup_end steps
             anneal_start: Optional[int]=    10_000, # None turns off annealing
             anneal_base: float=             0.999,  # 1.0 turns off annealing, lower values speed-up
             anneal_mul: float=              1.0,    # higher values speed-up annealing

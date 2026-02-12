@@ -45,10 +45,16 @@ class BaseBatcher(ABC):
             batch_size: int=            16,
             batch_size_TS_mul: int=     2,      # VL & TS batch_size multiplier
             batching_type: str=         'random',
+            device=                     None,
             seed=                       123,
             logger=                     None,
             loglevel=                   20,
     ):
+        """
+        device: if given, moves TR and TS data to device
+        """
+        if batching_type not in BATCHING_TYPES:
+            raise BatcherException('unknown batching_type')
 
         self.logger = logger or get_pylogger(
             name=   f'{self.__class__.__name__}_logger',
@@ -57,8 +63,7 @@ class BaseBatcher(ABC):
         self.seed_counter = seed
         self.rng = np.random.default_rng(self.seed_counter)
 
-        if batching_type not in BATCHING_TYPES:
-            raise BatcherException('unknown batching_type')
+        self.device = device
 
         self.btype = batching_type
 
@@ -99,6 +104,11 @@ class BaseBatcher(ABC):
         for k in self._keys:
             self.logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
 
+    def _move_data_to_device(self, data:Dict[str,NPL]):
+        if self.device is not None:
+            for k in data:
+                data[k] = data[k].to(self.device)
+
     @abstractmethod
     def load_data_TR_chunk(self) -> Dict[str,NPL]:
         """ should return a chunk of training data,
@@ -113,6 +123,7 @@ class BaseBatcher(ABC):
         #sub_time = stime
 
         chunk_next = self.load_data_TR_chunk()
+        self._move_data_to_device(chunk_next)
         #self.logger.debug(f'>> _get_next_chunk_.. load_data_TR_chunk(): {time.time() - sub_time:.2f}sec')
         #sub_time = time.time()
 
@@ -184,8 +195,10 @@ class BaseBatcher(ABC):
             raise BatcherException('ERR: TS name unknown!')
 
         if name not in self._TS_batches:
+            data = self._data_TS[name]
+            self._move_data_to_device(data)
             self._TS_batches[name] = split_into_batches(
-                data=   self._data_TS[name],
+                data=   data,
                 size=   self._batch_size * self._batch_size_TS_mul)
 
         return self._TS_batches[name]
