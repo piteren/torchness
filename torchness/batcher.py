@@ -43,7 +43,7 @@ class BaseBatcher(ABC):
             self,
             data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
             batch_size: int=            16,
-            batch_size_TS_mul: int=     2,      # VL & TS batch_size multiplier
+            batch_size_TS_mul: int=     2,      # TS batch_size multiplier
             batching_type: str=         'random',
             device=                     None,
             seed=                       123,
