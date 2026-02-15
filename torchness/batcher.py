@@ -416,10 +416,12 @@ class FilesBatcherMP(BaseBatcher):
         for _ in range(n_workers):
             self._put_next_task_to_ompr()
         if self.static_data:
-            self.static_data = [self.ompr.get_result() for _ in range(n_workers)]
+            self.static_data = self.ompr.get_all_results()
+            self.ompr.exit()
 
         data_TS = None
         if data_TS_chunk_fp:
+            self.logger.info(f'processing data_TS_chunk ..')
             cb_kwargs = {}
             if rww_init_kwargs:
                 cb_kwargs.update(rww_init_kwargs)
