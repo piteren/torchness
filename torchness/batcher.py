@@ -370,6 +370,7 @@ class FilesBatcherMP(BaseBatcher):
             chunk_processor_class: type(RunningWorker),
             rww_init_kwargs: Optional[Dict]=    None,
             n_workers: int=                     5,
+            ordered_results=                    True,
             raise_rww_exception: bool=          False,
             logger=                             None,
             loglevel=                           20,
@@ -388,7 +389,10 @@ class FilesBatcherMP(BaseBatcher):
         n_workers:
             max number of parallel MP workers that will be put into the chunk loading task,
             when average time needed by a worker to load and prepare a single chunk is greater
-            than time of running (training) this chunk with a NN, number of workers > 1 """
+            than time of running (training) this chunk with a NN, number of workers > 1
+        ordered_results:
+            allows for reproducibility of results,
+            REMEMBER to keep order of data_TR files """
 
         self.logger = logger or get_pylogger(
             name=   f'{self.__class__.__name__}_logger',
@@ -408,7 +412,7 @@ class FilesBatcherMP(BaseBatcher):
             rww_class=              chunk_processor_class,
             rww_init_kwargs=        rww_init_kwargs,
             devices=                [None] * n_workers,
-            ordered_results=        False,
+            ordered_results=        ordered_results,
             rerun_crashed=          False,
             raise_rww_exception=    raise_rww_exception,
             logger=                 get_child(logger=self.logger, change_level=10))
