@@ -402,7 +402,7 @@ class FilesBatcherMP(BaseBatcher):
         self._data_TR_chunk_fp = data_TR_chunk_fp
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
                          f'{n_test_files} TS files, n_workers:{n_workers}')
-        self.static_data = n_workers >= len(self._data_TR_chunk_fp)
+        self.static_data: bool | list = n_workers >= len(self._data_TR_chunk_fp)
         if self.static_data:
             if n_workers > len(self._data_TR_chunk_fp):
                 n_workers = len(self._data_TR_chunk_fp)
@@ -458,4 +458,5 @@ class FilesBatcherMP(BaseBatcher):
         return data
 
     def exit(self):
-        self.ompr.exit()
+        if not self.static_data:
+            self.ompr.exit()
