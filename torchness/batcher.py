@@ -20,8 +20,8 @@ class BatcherException(Exception):
     pass
 
 
-# splits data into batches of given size
 def split_into_batches(data:dict[str,NPL], size:int) -> list[dict[str,NPL]]:
+    """splits data into batches of given size"""
     split = []
     counter = 0
     keys = list(data.keys())
@@ -50,9 +50,7 @@ class BaseBatcher(ABC):
             logger = None,
             loglevel :int = 20,
     ):
-        """
-        device: if given, moves TR and TS data to device
-        """
+        """device: if given, moves TR and TS data to device"""
         if batching_type not in BATCHING_TYPES:
             raise BatcherException('unknown batching_type')
 
