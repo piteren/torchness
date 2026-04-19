@@ -6,7 +6,7 @@ import queue
 import threading
 import time
 import torch
-from typing import Dict, Optional, Tuple, List, Union
+from typing import Callable
 
 from torchness.base import ARR, TNS, NPL
 
@@ -21,7 +21,7 @@ class BatcherException(Exception):
 
 
 # splits data into batches of given size
-def split_into_batches(data:Dict[str,NPL], size:int) -> List[Dict[str,NPL]]:
+def split_into_batches(data:dict[str,NPL], size:int) -> list[dict[str,NPL]]:
     split = []
     counter = 0
     keys = list(data.keys())
@@ -41,14 +41,14 @@ class BaseBatcher(ABC):
 
     def __init__(
             self,
-            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
-            batch_size: int=            16,
-            batch_size_TS_mul: int=     2,      # TS batch_size multiplier
-            batching_type: str=         'random',
-            device=                     None,
-            seed=                       123,
-            logger=                     None,
-            loglevel=                   20,
+            data_TS: dict[str, NPL] | dict[str, dict[str, NPL]] | None = None,
+            batch_size: int = 16,
+            batch_size_TS_mul: int = 2,  # TS batch_size multiplier
+            batching_type: str = 'random',
+            device = None,
+            seed: int = 123,
+            logger = None,
+            loglevel :int = 20,
     ):
         """
         device: if given, moves TR and TS data to device
@@ -91,7 +91,7 @@ class BaseBatcher(ABC):
 
         if data_TS and type(list(data_TS.values())[0]) is not dict:
             data_TS = {self.default_TS_name: data_TS}
-        self._data_TS: Dict[str,Dict[str,NPL]] = data_TS
+        self._data_TS: dict[str, dict[str, NPL]] = data_TS
         self._data_TS_len = sum([self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]) if self._data_TS else 0
         self._TS_batches = {}
 
@@ -104,13 +104,13 @@ class BaseBatcher(ABC):
         for k in self._keys:
             self.logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
 
-    def _move_data_to_device(self, data:Dict[str,NPL]):
+    def _move_data_to_device(self, data:dict[str,NPL]):
         if self.device is not None:
             for k in data:
                 data[k] = data[k].to(self.device)
 
     @abstractmethod
-    def load_data_TR_chunk(self) -> Dict[str,NPL]:
+    def load_data_TR_chunk(self) -> dict[str,NPL]:
         """ should return a chunk of training data,
         it may be a full epoch or just a next part of it """
         pass
@@ -165,7 +165,7 @@ class BaseBatcher(ABC):
 
         self.logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
 
-    def get_batch(self) -> Dict[str,NPL]:
+    def get_batch(self) -> dict[str, NPL]:
 
         # set seed
         self.rng = np.random.default_rng(self.seed_counter)
@@ -179,7 +179,7 @@ class BaseBatcher(ABC):
 
         return {k: self._data_TR[k][indexes] for k in self._keys}
 
-    def get_TS_batches(self, name:Optional[str]=None) -> List[Dict[str,NPL]]:
+    def get_TS_batches(self, name:str|None=None) -> list[dict[str,NPL]]:
         """ if TS data was given as a dict of named test-sets then name (TS) has to be given,
         otherwise name=None """
 
@@ -203,25 +203,25 @@ class BaseBatcher(ABC):
 
         return self._TS_batches[name]
 
-    def get_data_size(self) -> Tuple[int,int]:
+    def get_data_size(self) -> tuple[int,int]:
         """ returns current TR chunk dataset length and TS dataset length """
         return self._data_TR_len, self._data_TS_len
 
-    def get_TS_names(self) -> Optional[List[str]]:
+    def get_TS_names(self) -> list[str]|None:
         if not self._data_TS:
             return None
         return list(self._data_TS.keys())
 
     @property
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         return self._keys
 
 
 def data_split(
-        data: Dict[str,NPL],
+        data: dict[str,NPL],
         split_factor: float,    # factor of data separated into second set
-        seed: int=      123,
-) -> Tuple[Dict[str,NPL], Dict[str,NPL]]:
+        seed: int = 123,
+) -> tuple[dict[str,NPL], dict[str,NPL]]:
     """ splits given data into two sets """
 
     rng = np.random.default_rng(seed)
@@ -254,9 +254,9 @@ class DataBatcher(BaseBatcher):
 
     def __init__(
             self,
-            data_TR: Dict[str,NPL],
+            data_TR: dict[str, NPL],
             split_factor: float=    0.0, # if > 0.0 and not data_TS then factor of data_TR will be put to data_TS
-            seed=                   123,
+            seed: int = 123,
             **kwargs,
     ):
 
@@ -272,7 +272,7 @@ class DataBatcher(BaseBatcher):
 
         super().__init__(seed=seed, **kwargs)
 
-    def load_data_TR_chunk(self) -> Dict[str,NPL]:
+    def load_data_TR_chunk(self) -> dict[str,NPL]:
         return {k:self._data_TR_chunk[k] for k in self._data_TR_chunk}
 
 
@@ -284,10 +284,10 @@ class FilesBatcher(BaseBatcher):
 
     def __init__(
             self,
-            data_files_fp: List[str],
-            chunk_builder: callable,
-            logger=         None,
-            loglevel=       20,
+            data_files_fp: list[str],
+            chunk_builder: Callable,
+            logger = None,
+            loglevel :int = 20,
             **kwargs,
     ):
         """
@@ -341,7 +341,7 @@ class FilesBatcher(BaseBatcher):
             if msg == 'exit':
                 break
 
-    def load_data_TR_chunk(self) -> Dict[str,NPL]:
+    def load_data_TR_chunk(self) -> dict[str,NPL]:
         stime = time.time()
         while True:
             if self._data_chunks:
@@ -365,15 +365,15 @@ class FilesBatcherMP(BaseBatcher):
 
     def __init__(
             self,
-            data_TR_chunk_fp: List[str],
-            data_TS_chunk_fp: Optional[str|Dict[str,str]],
-            chunk_processor_class: type(RunningWorker),
-            rww_init_kwargs: Optional[Dict]=    None,
-            n_workers: int=                     5,
-            ordered_results=                    True,
-            raise_rww_exception: bool=          False,
-            logger=                             None,
-            loglevel=                           20,
+            data_TR_chunk_fp: list[str],
+            data_TS_chunk_fp: str | dict[str,str] | None,
+            chunk_processor_class: type[RunningWorker],
+            rww_init_kwargs: dict | None = None,
+            n_workers: int = 5,
+            ordered_results: bool = True,
+            raise_rww_exception: bool = False,
+            logger = None,
+            loglevel: int = 20,
             **kwargs,
     ):
         """
@@ -446,7 +446,7 @@ class FilesBatcherMP(BaseBatcher):
         self._data_TR_chunk_fp.append(file)
         self.ompr.process({'file':file})
 
-    def load_data_TR_chunk(self) -> Dict[str,NPL]:
+    def load_data_TR_chunk(self) -> dict[str, NPL]:
         stime = time.time()
         if self.static_data:
             data = self.static_data.pop(0)
