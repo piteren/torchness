@@ -11,8 +11,8 @@ from typing import Callable
 from torchness.base import DATNS, cat_arrays, copy_array
 
 BATCHING_TYPES = (
-    'base',         # prepares batches (indexes) in order of given data (chunk)
-    'random',       # random sampling with full coverage of data (default)
+    'base',     # prepares batches (indexes) in order of given data (chunk)
+    'random',   # random sampling with full coverage of data (default)
 )
 
 
@@ -31,6 +31,34 @@ def split_into_batches(data:DATNS, size:int) -> list[DATNS]:
     return split
 
 
+def data_split(
+        data: DATNS,
+        split_factor: float,    # factor of data separated into second set
+        seed: int = 123,
+) -> tuple[DATNS, DATNS]:
+    """ splits given data into two sets """
+
+    rng = np.random.default_rng(seed)
+
+    keys = list(data.keys())
+    d_len = len(data[keys[0]])
+    indices = rng.permutation(d_len)
+
+    splitB_len = int(d_len * split_factor)
+    splitA_len = d_len - splitB_len
+
+    indicesA = indices[:splitA_len]
+    indicesB = indices[splitA_len:]
+
+    dataA = {}
+    dataB = {}
+    for k in keys:
+        dataA[k] = data[k][indicesA]
+        dataB[k] = data[k][indicesB]
+
+    return dataA, dataB
+
+
 class BaseBatcher(ABC):
     """ BaseBatcher prepares batches from chunks of training (TR) and testing (TS) data.
     It is an abstract class where load_data_TR_chunk() must be implemented.
@@ -46,6 +74,7 @@ class BaseBatcher(ABC):
             batch_size_TS_mul: int = 2,  # TS batch_size multiplier
             batching_type: str = 'random',
             seed: int = 123,
+            timing_report: bool = False,
             logger = None,
             loglevel :int = 20,
     ):
@@ -56,6 +85,11 @@ class BaseBatcher(ABC):
         self.logger = logger or get_pylogger(
             name=   f'{self.__class__.__name__}_logger',
             level=  loglevel)
+
+        self._timing = {
+            'load_chunk': [],
+            'extend_ixmap': [],
+        } if timing_report else None
 
         self.seed_counter = seed
         self.rng = np.random.default_rng(self.seed_counter)
@@ -71,13 +105,14 @@ class BaseBatcher(ABC):
         self._data_TR_len = None
         self._ixmap = np.asarray([], dtype=int)
         self._ixmap_pointer = 0
-
-        self._get_next_chunk_and_extend_ixmap()  # here the first chunk is loaded
+        self._get_next_chunk_and_extend_ixmap()  # load first chunk
 
         if data_TS and type(list(data_TS.values())[0]) is not dict:
             data_TS = {self.default_TS_name: data_TS}
         self._data_TS: dict[str, DATNS] = data_TS # type: ignore
-        self._data_TS_len = sum([self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]) if self._data_TS else 0
+        self._data_TS_len = sum([
+            self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]
+        ) if self._data_TS else 0
         self._TS_batches = {}
 
         self.logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
@@ -100,11 +135,15 @@ class BaseBatcher(ABC):
         precisely: when self._ixmap is small enough """
 
         stime = time.time()
-        #sub_time = stime
 
         chunk_next = self.load_data_TR_chunk()
-        #self.logger.debug(f'>> _get_next_chunk_.. load_data_TR_chunk(): {time.time() - sub_time:.2f}sec')
-        #sub_time = time.time()
+
+        td = time.time() - stime
+        self.logger.debug(f'> load_data_TR_chunk() waited {td:.2f}sec for a new data chunk')
+        if self._timing:
+            self._timing['load_chunk'].append(td)
+
+        stime = time.time()
 
         # set keys only once, with the first chunk
         if not self._keys:
@@ -114,27 +153,14 @@ class BaseBatcher(ABC):
         _ixmap_new = np.arange(chunk_next_len) # base
         if self.btype == 'random':
             self.rng.shuffle(_ixmap_new)
-        #self.logger.debug(f'>> _get_next_chunk_.. _ixmap_new: {time.time() - sub_time:.2f}sec')
-        #sub_time = time.time()
 
-        ### tries to concat left data with new chunk, only supported for ARR and TNS in chunks
-
+        # concat left data with new chunk
         _ixmap_left = self._ixmap[self._ixmap_pointer:]
         _ixmap_left_size = len(_ixmap_left)
-
-        #self.logger.debug(f'>> _get_next_chunk_.. concat A: {time.time() - sub_time:.2f}sec')
-        #sub_time = time.time()
-        #print(self._keys, chunk_next.keys(), _ixmap_left_size, len(_ixmap_new))
-
         if _ixmap_left_size:
-
             for k in self._keys:
-                #print(k, self._data_TR[k].shape, chunk_next[k].shape)
                 chunk_next[k] = cat_arrays([self._data_TR[k][_ixmap_left], chunk_next[k]])
-            #self.logger.debug(f'>> _get_next_chunk_.. concat B: {time.time() - sub_time:.2f}sec')
-            #sub_time = time.time()
             _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
-            #self.logger.debug(f'>> _get_next_chunk_.. concat C: {time.time() - sub_time:.2f}sec')
 
         self._ixmap = _ixmap_new
         self._ixmap_pointer = 0
@@ -142,7 +168,10 @@ class BaseBatcher(ABC):
         self._data_TR = chunk_next
         self._data_TR_len = len(self._data_TR[self._keys[0]])
 
-        self.logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
+        td = time.time() - stime
+        self.logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {td:.2f}sec')
+        if self._timing:
+            self._timing['extend_ixmap'].append(td)
 
     def get_batch(self) -> DATNS:
 
@@ -194,33 +223,17 @@ class BaseBatcher(ABC):
     def keys(self) -> list[str]:
         return self._keys
 
-
-def data_split(
-        data: DATNS,
-        split_factor: float,    # factor of data separated into second set
-        seed: int = 123,
-) -> tuple[DATNS, DATNS]:
-    """ splits given data into two sets """
-
-    rng = np.random.default_rng(seed)
-
-    keys = list(data.keys())
-    d_len = len(data[keys[0]])
-    indices = rng.permutation(d_len)
-
-    splitB_len = int(d_len * split_factor)
-    splitA_len = d_len - splitB_len
-
-    indicesA = indices[:splitA_len]
-    indicesB = indices[splitA_len:]
-
-    dataA = {}
-    dataB = {}
-    for k in keys:
-        dataA[k] = data[k][indicesA]
-        dataB[k] = data[k][indicesB]
-
-    return dataA, dataB
+    def exit(self):
+        self.logger.info(f'{self.__class__.__name__} exits ..')
+        if self._timing:
+            n_loads = len(self._timing['load_chunk'])
+            if n_loads:
+                load_t = sum(self._timing['load_chunk']) / n_loads
+                self.logger.info(f'> loads ({n_loads}), avg: {load_t:.2f}sec')
+            n_extends = len(self._timing['extend_ixmap'])
+            if n_extends:
+                ext_t = sum(self._timing['extend_ixmap'])
+                self.logger.info(f'> extensions ({n_extends}), avg: {ext_t:.2f}sec')
 
 
 class DataBatcher(BaseBatcher):
@@ -279,8 +292,6 @@ class FilesBatcher(BaseBatcher):
             level=  loglevel)
 
         self._data_files_fp = data_files_fp
-        if not self._data_files_fp:
-            raise BatcherException(f'data_TR_chunk_fp is empty: {data_files_fp}')
 
         self._chunk_builder = chunk_builder
         self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files')
@@ -320,18 +331,15 @@ class FilesBatcher(BaseBatcher):
                 break
 
     def load_data_TR_chunk(self) -> DATNS:
-        stime = time.time()
         while True:
             if self._data_chunks:
-                _waited = time.time() - stime
                 data = self._data_chunks.pop(0)
                 self.q_to_loader.put('load') # put next task immediately
-                self.logger.debug(f'> load_data_TR_chunk() waited {_waited:.2f}sec '
-                                  f'for a new data chunk, TOT:{time.time() - stime:.2f}sec')
                 return data
             time.sleep(0.1)
 
     def exit(self):
+        super().exit()
         self.q_to_loader.put('exit')
         self.loader_thread.join()
 
@@ -425,7 +433,6 @@ class FilesBatcherMP(BaseBatcher):
         self.ompr.process({'file':file})
 
     def load_data_TR_chunk(self) -> DATNS:
-        stime = time.time()
         if self.static_data:
             data = self.static_data.pop(0)
             data_copy = {k: copy_array(data[k]) for k in data} # keep clean copy
@@ -433,9 +440,9 @@ class FilesBatcherMP(BaseBatcher):
         else:
             data = self.ompr.get_result()
             self._put_next_task_to_ompr()  # put next task immediately
-        self.logger.debug(f'> load_data_TR_chunk() waited {time.time() - stime:.2f}sec for a new data chunk')
         return data # type: ignore
 
     def exit(self):
+        super().exit()
         if not self.static_data:
             self.ompr.exit()
