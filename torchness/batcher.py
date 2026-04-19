@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 import numpy as np
+
 from ompr.runner import OMPRunner, RunningWorker
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 import queue
 import threading
 import time
-import torch
 from typing import Callable
 
-from torchness.base import ARR, TNS, NPL
+from torchness.base import DATNS, cat_arrays, copy_array
 
 BATCHING_TYPES = (
     'base',         # prepares batches (indexes) in order of given data (chunk)
@@ -20,7 +20,7 @@ class BatcherException(Exception):
     pass
 
 
-def split_into_batches(data:dict[str,NPL], size:int) -> list[dict[str,NPL]]:
+def split_into_batches(data:DATNS, size:int) -> list[DATNS]:
     """splits data into batches of given size"""
     split = []
     counter = 0
@@ -37,15 +37,14 @@ class BaseBatcher(ABC):
     TS input data (unnamed chunk) is a dict: {axis_name: np.ndarray or torch.Tensor}.
     TS data may be given also as a dict of named test-sets (chunks): {testset_name: {chunk}} """
 
-    default_TS_name = '__TS__' # default name of testset when given as unnamed chunk
+    default_TS_name = '__TS__' # default name of testset when given as (unnamed) DATNS
 
     def __init__(
             self,
-            data_TS: dict[str, NPL] | dict[str, dict[str, NPL]] | None = None,
+            data_TS: DATNS | dict[str, DATNS] | None = None,
             batch_size: int = 16,
             batch_size_TS_mul: int = 2,  # TS batch_size multiplier
             batching_type: str = 'random',
-            device = None,
             seed: int = 123,
             logger = None,
             loglevel :int = 20,
@@ -61,35 +60,23 @@ class BaseBatcher(ABC):
         self.seed_counter = seed
         self.rng = np.random.default_rng(self.seed_counter)
 
-        self.device = device
-
         self.btype = batching_type
 
         self._batch_size = batch_size
         self._batch_size_TS_mul = batch_size_TS_mul
 
-        # properties below will be set when first chunk (and every next) will be loaded
+        # attr below will be set when the first chunk will be loaded
         self._data_TR = {}
         self._keys = []
         self._data_TR_len = None
         self._ixmap = np.asarray([], dtype=int)
         self._ixmap_pointer = 0
-        self._get_next_chunk_and_extend_ixmap()  # here first chunk is loaded
 
-        # resolve conc_func
-        conc_func = None
-        _cdt = type(self._data_TR[self._keys[0]])
-        if _cdt is ARR:
-            conc_func = np.concatenate
-        if _cdt is TNS:
-            conc_func = torch.cat
-        self._conc_func = conc_func
-        if conc_func is None:
-            raise BatcherException(f'wrong data type in chunk!\n{_cdt}')
+        self._get_next_chunk_and_extend_ixmap()  # here the first chunk is loaded
 
         if data_TS and type(list(data_TS.values())[0]) is not dict:
             data_TS = {self.default_TS_name: data_TS}
-        self._data_TS: dict[str, dict[str, NPL]] = data_TS
+        self._data_TS: dict[str, DATNS] = data_TS # type: ignore
         self._data_TS_len = sum([self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]) if self._data_TS else 0
         self._TS_batches = {}
 
@@ -102,13 +89,8 @@ class BaseBatcher(ABC):
         for k in self._keys:
             self.logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
 
-    def _move_data_to_device(self, data:dict[str,NPL]):
-        if self.device is not None:
-            for k in data:
-                data[k] = data[k].to(self.device)
-
     @abstractmethod
-    def load_data_TR_chunk(self) -> dict[str,NPL]:
+    def load_data_TR_chunk(self) -> DATNS:
         """ should return a chunk of training data,
         it may be a full epoch or just a next part of it """
         pass
@@ -121,7 +103,6 @@ class BaseBatcher(ABC):
         #sub_time = stime
 
         chunk_next = self.load_data_TR_chunk()
-        self._move_data_to_device(chunk_next)
         #self.logger.debug(f'>> _get_next_chunk_.. load_data_TR_chunk(): {time.time() - sub_time:.2f}sec')
         #sub_time = time.time()
 
@@ -149,7 +130,7 @@ class BaseBatcher(ABC):
 
             for k in self._keys:
                 #print(k, self._data_TR[k].shape, chunk_next[k].shape)
-                chunk_next[k] = self._conc_func([self._data_TR[k][_ixmap_left], chunk_next[k]])
+                chunk_next[k] = cat_arrays([self._data_TR[k][_ixmap_left], chunk_next[k]])
             #self.logger.debug(f'>> _get_next_chunk_.. concat B: {time.time() - sub_time:.2f}sec')
             #sub_time = time.time()
             _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
@@ -163,7 +144,7 @@ class BaseBatcher(ABC):
 
         self.logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {time.time() - stime:.2f}sec')
 
-    def get_batch(self) -> dict[str, NPL]:
+    def get_batch(self) -> DATNS:
 
         # set seed
         self.rng = np.random.default_rng(self.seed_counter)
@@ -177,7 +158,7 @@ class BaseBatcher(ABC):
 
         return {k: self._data_TR[k][indexes] for k in self._keys}
 
-    def get_TS_batches(self, name:str|None=None) -> list[dict[str,NPL]]:
+    def get_TS_batches(self, name:str|None=None) -> list[DATNS]:
         """ if TS data was given as a dict of named test-sets then name (TS) has to be given,
         otherwise name=None """
 
@@ -194,7 +175,6 @@ class BaseBatcher(ABC):
 
         if name not in self._TS_batches:
             data = self._data_TS[name]
-            self._move_data_to_device(data)
             self._TS_batches[name] = split_into_batches(
                 data=   data,
                 size=   self._batch_size * self._batch_size_TS_mul)
@@ -216,10 +196,10 @@ class BaseBatcher(ABC):
 
 
 def data_split(
-        data: dict[str,NPL],
+        data: DATNS,
         split_factor: float,    # factor of data separated into second set
         seed: int = 123,
-) -> tuple[dict[str,NPL], dict[str,NPL]]:
+) -> tuple[DATNS, DATNS]:
     """ splits given data into two sets """
 
     rng = np.random.default_rng(seed)
@@ -246,13 +226,13 @@ def data_split(
 class DataBatcher(BaseBatcher):
     """ DataBatcher prepares batches from a given training (TR) data and testing (TS) data.
     Input data is a dict: {key: np.ndarray or torch.Tensor}.
-    TS data may be given as a named test-set: Dict[str, Dict[str,NPL]] """
+    TS data may be given as a named test-set: Dict[str, DATNS] """
 
     default_TS_name = '__TS__'
 
     def __init__(
             self,
-            data_TR: dict[str, NPL],
+            data_TR: DATNS,
             split_factor: float=    0.0, # if > 0.0 and not data_TS then factor of data_TR will be put to data_TS
             seed: int = 123,
             **kwargs,
@@ -270,7 +250,7 @@ class DataBatcher(BaseBatcher):
 
         super().__init__(seed=seed, **kwargs)
 
-    def load_data_TR_chunk(self) -> dict[str,NPL]:
+    def load_data_TR_chunk(self) -> DATNS:
         return {k:self._data_TR_chunk[k] for k in self._data_TR_chunk}
 
 
@@ -292,7 +272,7 @@ class FilesBatcher(BaseBatcher):
         data_TR_chunk_fp:
             list of file paths where data of TR chunks is stored
         chunk_builder(file:str):
-            function that should return chunk of data Dict[str,NPL] given file path """
+            function that should return chunk of data DATNS given file path """
 
         self.logger = logger or get_pylogger(
             name=   f'{self.__class__.__name__}_logger',
@@ -339,7 +319,7 @@ class FilesBatcher(BaseBatcher):
             if msg == 'exit':
                 break
 
-    def load_data_TR_chunk(self) -> dict[str,NPL]:
+    def load_data_TR_chunk(self) -> DATNS:
         stime = time.time()
         while True:
             if self._data_chunks:
@@ -379,11 +359,11 @@ class FilesBatcherMP(BaseBatcher):
             list of file paths with TR data chunks
         data_TS_chunk_fp:
             file path with TS data chunks
-        chunk_builder_class:
+        chunk_processor_class:
             is a class of type RunningWorker, where process accepts file_fp(str)
-            and returns a NN ready chunk of data Dict[str,NPL]
+            and returns a NN ready chunk of data DATNS
         rww_init_kwargs:
-            chunk_builder_class __init__ kwargs
+            chunk_processor_class __init__ kwargs
         n_workers:
             max number of parallel MP workers that will be put into the chunk loading task,
             when average time needed by a worker to load and prepare a single chunk is greater
@@ -429,12 +409,12 @@ class FilesBatcherMP(BaseBatcher):
                 cb_kwargs.update(rww_init_kwargs)
             cb = chunk_processor_class(**cb_kwargs)
             if type(data_TS_chunk_fp) is str:
-                data_TS = cb.process(data_TS_chunk_fp)
+                data_TS = cb.process(file=data_TS_chunk_fp)
                 self.logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
             else:
                 data_TS = {}
                 for k,fp in data_TS_chunk_fp.items():
-                    data_TS[k] = cb.process(fp)
+                    data_TS[k] = cb.process(file=fp)
                     self.logger.info(f'> loaded and processed data_TS_chunk {k} from {fp}')
 
         super().__init__(data_TS=data_TS, logger=self.logger, **kwargs)
@@ -444,16 +424,17 @@ class FilesBatcherMP(BaseBatcher):
         self._data_TR_chunk_fp.append(file)
         self.ompr.process({'file':file})
 
-    def load_data_TR_chunk(self) -> dict[str, NPL]:
+    def load_data_TR_chunk(self) -> DATNS:
         stime = time.time()
         if self.static_data:
             data = self.static_data.pop(0)
-            self.static_data.append(data)
+            data_copy = {k: copy_array(data[k]) for k in data} # keep clean copy
+            self.static_data.append(data_copy)
         else:
             data = self.ompr.get_result()
             self._put_next_task_to_ompr()  # put next task immediately
         self.logger.debug(f'> load_data_TR_chunk() waited {time.time() - stime:.2f}sec for a new data chunk')
-        return data
+        return data # type: ignore
 
     def exit(self):
         if not self.static_data:

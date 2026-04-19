@@ -1,19 +1,25 @@
-import numpy as np
+from pypaq.pytypes import ARR
 import torch
-from typing import Optional, Callable, Dict, Any, Sequence
+from typing import Callable, Sequence, Type
 
-ACT = Optional[type(torch.nn.Module)]   # activation type
-INI = Optional[Callable]                # initializer type
+ACT = Type[torch.nn.Module] | None  # activation type
+INI = Callable | None               # initializer type
 
-ARR = np.ndarray                        # numpy array
-DARR = Dict[str, ARR|Any]               # dict {str: ARR|Any}
-TNS = torch.Tensor                      # torch Tensor
-DTNS = Dict[str, TNS|Any]               # dict {str: TNS|Any}
-DTA = Dict[str, TNS|ARR|Any]            # dict {str: TNS|ARR|Any}
-
-NUM = int|float|ARR|TNS                 # extends pypaq NUM with TNS
-NPL = Sequence[NUM]|ARR|TNS             # extends pypaq NPL with TNS
+TNS = torch.Tensor                  # torch Tensor
+ATNS = ARR | TNS                    # numpy array or torch Tensor
+NUM = int | float | ATNS            # extends pypaq NUM with TNS
+NPL = Sequence[NUM] | ATNS          # extends pypaq NPL with TNS
+DTNS = dict[str, TNS]
+DATNS = dict[str, ATNS]
 
 
 class TorchnessException(Exception):
     pass
+
+
+def cat_arrays(arrays:list[ATNS]) -> ATNS:
+    return np.concatenate(arrays) if type(arrays[0]) is ARR else torch.cat(arrays) # type: ignore
+
+
+def copy_array(a:ATNS) -> ATNS:
+    return np.copy(a) if type(a) is ARR else torch.clone(a) # type: ignore
