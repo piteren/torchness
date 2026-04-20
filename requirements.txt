@@ -2,7 +2,7 @@ GPUtil
 numpy
 ompr
 onnx
-onnxruntime
+onnxruntime-gpu
 pillow
 pypaq
 tqdm
