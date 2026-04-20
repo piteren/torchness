@@ -403,27 +403,39 @@ class FilesBatcherMP(BaseBatcher):
             raise_rww_exception=    raise_rww_exception,
             logger=                 get_child(logger=self.logger, change_level=10))
 
-        for _ in range(n_workers):
-            self._put_next_task_to_ompr()
-        if self.static_data:
-            self.static_data = self.ompr.get_all_results()
-            self.ompr.exit()
-
+        # start TS workers
+        n_ts_workers = 0
         data_TS = None
         if data_TS_chunk_fp:
-            self.logger.info(f'processing data_TS_chunk ..')
-            cb_kwargs = {}
-            if rww_init_kwargs:
-                cb_kwargs.update(rww_init_kwargs)
-            cb = chunk_processor_class(**cb_kwargs)
             if type(data_TS_chunk_fp) is str:
-                data_TS = cb.process(file=data_TS_chunk_fp)
+                self.ompr.process({'file':data_TS_chunk_fp})
+                n_ts_workers = 1
+            else:
+                for fp in data_TS_chunk_fp.values():
+                    self.ompr.process({'file':fp})
+                    n_ts_workers += 1
+
+        # start TR workers
+        if n_workers-n_ts_workers > 0:
+            for _ in range(n_workers-n_ts_workers):
+                self._put_next_task_to_ompr()
+
+        # collect TS data and put TR tasks
+        if n_ts_workers > 0:
+            if type(data_TS_chunk_fp) is str:
+                data_TS = self.ompr.get_result()
                 self.logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
+                self._put_next_task_to_ompr()
             else:
                 data_TS = {}
                 for k,fp in data_TS_chunk_fp.items():
-                    data_TS[k] = cb.process(file=fp)
+                    data_TS[k] = self.ompr.get_result()
                     self.logger.info(f'> loaded and processed data_TS_chunk {k} from {fp}')
+                    self._put_next_task_to_ompr()
+
+        if self.static_data:
+            self.static_data = self.ompr.get_all_results()
+            self.ompr.exit()
 
         super().__init__(data_TS=data_TS, logger=self.logger, **kwargs)
 
