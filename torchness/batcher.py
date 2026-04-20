@@ -232,7 +232,7 @@ class BaseBatcher(ABC):
                 self.logger.info(f'> loads ({n_loads}), avg: {load_t:.2f}sec')
             n_extends = len(self._timing['extend_ixmap'])
             if n_extends:
-                ext_t = sum(self._timing['extend_ixmap'])
+                ext_t = sum(self._timing['extend_ixmap']) / n_extends
                 self.logger.info(f'> extensions ({n_extends}), avg: {ext_t:.2f}sec')
 
 
