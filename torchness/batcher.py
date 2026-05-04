@@ -214,9 +214,9 @@ class BaseBatcher(ABC):
         """ returns current TR chunk dataset length and TS dataset length """
         return self._data_TR_len, self._data_TS_len
 
-    def get_TS_names(self) -> list[str]|None:
+    def get_TS_names(self) -> list[str]:
         if not self._data_TS:
-            return None
+            return []
         return list(self._data_TS.keys())
 
     @property
@@ -453,6 +453,11 @@ class FilesBatcherMP(BaseBatcher):
             data = self.ompr.get_result()
             self._put_next_task_to_ompr()  # put next task immediately
         return data # type: ignore
+
+    @property
+    def num_TR_samples(self) -> int:
+        """estimated number of all samples"""
+        return len(self._data_TR_chunk_fp) * self.get_data_size()[0]
 
     def exit(self):
         super().exit()
