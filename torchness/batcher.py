@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
+import logging
 import numpy as np
 
 from ompr.runner import OMPRunner, RunningWorker
-from pypaq.lipytools.pylogger import Logged
 import queue
 import threading
 import time
 from collections.abc import Callable
 
 from torchness.base import DATNS, cat_arrays, copy_array
+
+logger = logging.getLogger(__name__)
 
 BATCHING_TYPES = (
     'base',     # prepares batches (indexes) in order of given data (chunk)
@@ -59,7 +61,7 @@ def data_split(
     return dataA, dataB
 
 
-class BaseBatcher(ABC, Logged):
+class BaseBatcher(ABC):
     """ BaseBatcher prepares batches from chunks of training (TR) and testing (TS) data.
     It is an abstract class where load_data_TR_chunk() must be implemented.
     TS input data (unnamed chunk) is a dict: {axis_name: np.ndarray or torch.Tensor}.
@@ -75,12 +77,9 @@ class BaseBatcher(ABC, Logged):
             batching_type: str = 'random',
             seed: int = 123,
             timing_report: bool = False,
-            loglevel: int = 20,
     ):
         if batching_type not in BATCHING_TYPES:
             raise BatcherException('unknown batching_type')
-
-        self.logger = self.get_logger(level=loglevel)
 
         self._timing = {
             'load_chunk': [],
@@ -110,14 +109,14 @@ class BaseBatcher(ABC, Logged):
         ) if self._data_TS else 0
         self._TS_batches = {}
 
-        self.logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
-        self.logger.info(f'> data_TR_len: {self._data_TR_len} - loaded (first?) chunk')
+        logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
+        logger.info(f'> data_TR_len: {self._data_TR_len} - loaded (first?) chunk')
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
-            self.logger.info(f'> data_TS names: {list(self._data_TS.keys())}')
-        self.logger.info(f'> data_TS_len: {self._data_TS_len}')
-        self.logger.debug('> Batcher (batch) keys:')
+            logger.info(f'> data_TS names: {list(self._data_TS.keys())}')
+        logger.info(f'> data_TS_len: {self._data_TS_len}')
+        logger.debug('> Batcher (batch) keys:')
         for k in self._keys:
-            self.logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
+            logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
 
     @abstractmethod
     def load_data_TR_chunk(self) -> DATNS:
@@ -134,7 +133,7 @@ class BaseBatcher(ABC, Logged):
         chunk_next = self.load_data_TR_chunk()
 
         td = time.time() - stime
-        self.logger.debug(f'> load_data_TR_chunk() waited {td:.2f}sec for a new data chunk')
+        logger.debug(f'> load_data_TR_chunk() waited {td:.2f}sec for a new data chunk')
         if self._timing:
             self._timing['load_chunk'].append(td)
 
@@ -162,7 +161,7 @@ class BaseBatcher(ABC, Logged):
         self._data_TR_len = len(self._data_TR[self._keys[0]])
 
         td = time.time() - stime
-        self.logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {td:.2f}sec')
+        logger.debug(f'> _get_next_chunk_and_extend_ixmap() took {td:.2f}sec')
         if self._timing:
             self._timing['extend_ixmap'].append(td)
 
@@ -216,16 +215,16 @@ class BaseBatcher(ABC, Logged):
         return self._keys
 
     def exit(self):
-        self.logger.info(f'{self.__class__.__name__} exits ..')
+        logger.info(f'{self.__class__.__name__} exits ..')
         if self._timing:
             n_loads = len(self._timing['load_chunk'])
             if n_loads:
                 load_t = sum(self._timing['load_chunk']) / n_loads
-                self.logger.info(f'> loads ({n_loads}), avg: {load_t:.2f}sec')
+                logger.info(f'> loads ({n_loads}), avg: {load_t:.2f}sec')
             n_extends = len(self._timing['extend_ixmap'])
             if n_extends:
                 ext_t = sum(self._timing['extend_ixmap']) / n_extends
-                self.logger.info(f'> extensions ({n_extends}), avg: {ext_t:.2f}sec')
+                logger.info(f'> extensions ({n_extends}), avg: {ext_t:.2f}sec')
 
 
 class DataBatcher(BaseBatcher):
@@ -269,7 +268,6 @@ class FilesBatcher(BaseBatcher):
             self,
             data_TR_chunk_fp: list[str],
             chunk_builder: Callable,
-            loglevel: int = 20,
             **kwargs,
     ):
         """
@@ -278,12 +276,10 @@ class FilesBatcher(BaseBatcher):
         chunk_builder(file:str):
             function that should return chunk of data DATNS given file path """
 
-        self.logger = self.get_logger(level=loglevel)
-
         self._data_TR_chunk_fp = data_TR_chunk_fp
 
         self._chunk_builder = chunk_builder
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} files')
+        logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} files')
 
         self._data_chunks = []
         self.q_to_loader = queue.Queue()
@@ -292,17 +288,17 @@ class FilesBatcher(BaseBatcher):
         self.loader_thread.start()
         self.q_to_loader.put('load')
 
-        super().__init__(loglevel=loglevel, **kwargs)
+        super().__init__(**kwargs)
 
     def _loader_loop(self):
 
-        self.logger.debug('loader started loop')
+        logger.debug('loader started loop')
 
         while True:
 
             stime = time.time()
             msg = self.q_to_loader.get()
-            self.logger.debug(f'> loader thread waited {time.time() - stime:.2f}sec for a new task (msg)')
+            logger.debug(f'> loader thread waited {time.time() - stime:.2f}sec for a new task (msg)')
 
             if msg == 'load':
 
@@ -311,10 +307,10 @@ class FilesBatcher(BaseBatcher):
                 file = self._data_TR_chunk_fp.pop(0)
                 self._data_TR_chunk_fp.append(file)
 
-                self.logger.debug(f'>> loader starts loading file: {file} ..')
+                logger.debug(f'>> loader starts loading file: {file} ..')
                 _data = self._chunk_builder(file=file)
                 self._data_chunks.append(_data)
-                self.logger.debug(f'>> loader added chunk of data from file: {file}, thread took {time.time()-stime:.2f}sec')
+                logger.debug(f'>> loader added chunk of data from file: {file}, thread took {time.time()-stime:.2f}sec')
 
             if msg == 'exit':
                 break
@@ -347,7 +343,6 @@ class FilesBatcherMP(BaseBatcher):
             n_workers: int = 5,
             ordered_results: bool = True,
             raise_rww_exception: bool = False,
-            loglevel: int = 20,
             **kwargs,
     ):
         """
@@ -366,19 +361,17 @@ class FilesBatcherMP(BaseBatcher):
             than time of running (training) this chunk with a NN, number of workers > 1
         ordered_results:
             allows for reproducibility of results,
-            REMEMBER to keep order of data_TR files """
-
-        self.logger = self.get_logger(level=loglevel)
+            REMEMBER to keep order of files in data_TR_chunk_fp"""
 
         n_test_files = 0 if not data_TS_chunk_fp else (1 if type(data_TS_chunk_fp) is str else len(data_TS_chunk_fp))
         self._data_TR_chunk_fp = data_TR_chunk_fp
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
-                         f'{n_test_files} TS files, n_workers:{n_workers}')
+        logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
+                    f'{n_test_files} TS files, n_workers:{n_workers}')
         self.static_data: bool | list = n_workers >= len(self._data_TR_chunk_fp)
         if self.static_data:
             if n_workers > len(self._data_TR_chunk_fp):
                 n_workers = len(self._data_TR_chunk_fp)
-                self.logger.info(f'> reduced n_workers to {n_workers} for static data case')
+                logger.info(f'> reduced n_workers to {n_workers} for static data case')
 
         self.ompr = OMPRunner(
             rww_class=              chunk_processor_class,
@@ -387,7 +380,7 @@ class FilesBatcherMP(BaseBatcher):
             ordered_results=        ordered_results,
             rerun_crashed=          False,
             raise_rww_exception=    raise_rww_exception,
-            loglevel=               loglevel)
+        )
 
         # start TS workers
         n_ts_workers = 0
@@ -410,20 +403,20 @@ class FilesBatcherMP(BaseBatcher):
         if n_ts_workers > 0:
             if type(data_TS_chunk_fp) is str:
                 data_TS = self.ompr.get_result()
-                self.logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
+                logger.info(f'> loaded and processed data_TS_chunk from {data_TS_chunk_fp}')
                 self._put_next_task_to_ompr()
             else:
                 data_TS = {}
                 for k, fp in data_TS_chunk_fp.items():
                     data_TS[k] = self.ompr.get_result()
-                    self.logger.info(f'> loaded and processed data_TS_chunk {k} from {fp}')
+                    logger.info(f'> loaded and processed data_TS_chunk {k} from {fp}')
                     self._put_next_task_to_ompr()
 
         if self.static_data:
             self.static_data = self.ompr.get_all_results()
             self.ompr.exit()
 
-        super().__init__(data_TS=data_TS, loglevel=loglevel, **kwargs)
+        super().__init__(data_TS=data_TS, **kwargs)
 
     def _put_next_task_to_ompr(self):
         file = self._data_TR_chunk_fp.pop(0)

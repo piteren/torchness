@@ -1,10 +1,11 @@
 from collections.abc import Iterable
-
+import logging
 from pypaq.lipytools.moving_average import MovAvg
-from pypaq.lipytools.pylogger import Logged
 import torch
 
 from torchness.base import TNS, NUM, NPL, TorchnessException
+
+logger = logging.getLogger(__name__)
 
 
 def clip_grad_norm_(
@@ -45,7 +46,7 @@ def clip_grad_norm_(
     return total_norm.item()
 
 
-class GradClipperMAVG(Logged):
+class GradClipperMAVG:
     """ clips gradients of parameters of given Module with MovAvg value """
 
     def __init__(
@@ -57,10 +58,7 @@ class GradClipperMAVG(Logged):
             max_clip: NUM | None = None,
             max_upd: NUM = 1.5,
             do_clip: bool = True,
-            loglevel: int = 20,
     ):
-        self.logger = self.get_logger(level=loglevel)
-
         self.module = module
 
         self.mavg = MovAvg(factor=factor, first_avg=first_avg)
@@ -73,13 +71,13 @@ class GradClipperMAVG(Logged):
     def clip(self) -> dict[str, float]:
 
         gg_norm_clip = self.mavg()
-        self.logger.debug(f'gg_norm_clip: {gg_norm_clip}')
+        logger.debug(f'gg_norm_clip: {gg_norm_clip}')
 
         gg_norm = clip_grad_norm_(
             parameters= self.module.parameters(),
             max_norm=   gg_norm_clip,
             do_clip=    self.do_clip)
-        self.logger.debug(f'gg_norm: {gg_norm}')
+        logger.debug(f'gg_norm: {gg_norm}')
 
         mavg_update = min(gg_norm, gg_norm_clip*self.max_upd)
         if self.max_clip:
