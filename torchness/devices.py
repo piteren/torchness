@@ -1,44 +1,43 @@
 import GPUtil
+import logging
 import os
-from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.lipytools.printout import printover
 from pypaq.mpython.mptools import sys_res_nfo
 import time
 import torch
-from typing import Optional, Union, List
 
 from torchness.base import TorchnessException
 
+logger = logging.getLogger(__name__)
 
 """
 devices: DevicesTorchness - parameter type
     - represents some devices (GPU / CPU)
     - compatible with torch.device (class) type
- 
+
     ### ************************************************************************************** torchness representations
-    
+
     # cuda
     int                                 (int)                    single (system) CUDA ID
-    -int                                (int)                    AVAILABLE CUDA[-int] 
+    -int                                (int)                    AVAILABLE CUDA[-int]
     [] (empty list)                     (list)                   all AVAILABLE CUDA
-    
+
     # cpu
     None                                (NoneType)               single CPU core
     float                               (float)                  (0.0;1.0> - factor of system CPU cores
     'all'                               (str)                    all CPU cores
     'cpu'                               (str)                    single CPU core
-    
+
     ### ***************************************************************************************** PyTorch representation
     'cpu'                               (str)                    PyTorch CPU
     'cuda'                              (str)                    PyTorch GPU
     'cuda:0'                            (str)                    PyTorch GPU
     torch.device                        (<class 'torch.device'>) PyTorch device type
-    
-    [int,-int,[],None,str,torch.device] (list)                   list with mix of ALL above, possible repetitions
-       
-"""
-DevicesTorchness: Union[int, None, float, str, torch.device, List[Union[int,None,float,str,torch.device]]] = -1
 
+    [int,-int,[],None,str,torch.device] (list)                   list with mix of ALL above, possible repetitions
+
+"""
+DevicesTorchness = int | None | float | str | torch.device | list[int | None | float | str | torch.device]
 
 
 def get_cuda_mem():
@@ -48,15 +47,15 @@ def get_cuda_mem():
 
 
 def get_available_cuda_id(
-        mem_free: int=      4000,
-        load_max: float=    1.0,
-) -> List[int]:
+        mem_free: int = 4000,
+        load_max: float = 1.0,
+) -> list[int]:
     """ returns list of available GPUs ids, ordered from the highest free memory
     mem_free: (MB) amount of free GPU RAM to consider device available
     load_max: 0.0-1.0 factor of max GPU load to consider device available"""
     cuda_devices = [(device.id, int(device.memoryFree), device.load) for device in GPUtil.getGPUs()]
     cuda_devices = [d for d in cuda_devices if d[1] >= mem_free and d[2] <= load_max]
-    cuda_devices.sort(key=lambda x:x[1], reverse=True)
+    cuda_devices.sort(key=lambda x: x[1], reverse=True)
     return [d[0] for d in cuda_devices]
 
 
@@ -69,26 +68,19 @@ def report_cuda() -> str:
 
 
 def _get_devices_torchness(
-        devices: DevicesTorchness=  -1,
-        mem_free: int=              4000,
-        load_max: float=            1.0,
-        logger=                     None,
-        loglevel=                   20,
-) -> List[Union[int,None]]:
+        devices: DevicesTorchness = -1,
+        mem_free: int = 4000,
+        load_max: float = 1.0,
+) -> list[int | None]:
     """ returns torchness representation of given devices
     max_load and max_mem are used only when requesting AVAILABLE CUDA (with -int or []) """
 
-    if not logger:
-        logger = get_pylogger(name='_get_devices_torchness', level=loglevel)
-
-    # first convert to list
     if type(devices) is not list:
         devices = [devices]
 
     cpu_count = sys_res_nfo()['cpu_count']
     logger.debug(f'got {cpu_count} CPU devices in a system')
 
-    # try to get available CUDA
     available_cuda_id = []
     try:
         available_cuda_id = get_available_cuda_id(mem_free=mem_free, load_max=load_max)
@@ -153,27 +145,24 @@ def _get_devices_torchness(
 
 
 def get_devices(
-        devices: DevicesTorchness=  -1,
-        mem_free: int=              4000,
-        load_max: float=            1.0,
-        eventually_cpu: bool=       False,
-        torch_namespace: bool=      True,
-        logger=                     None,
-        loglevel=                   20,
-) -> List[Union[int,None,str]]:
+        devices: DevicesTorchness = -1,
+        mem_free: int = 4000,
+        load_max: float = 1.0,
+        eventually_cpu: bool = False,
+        torch_namespace: bool = True,
+) -> list[int | None | str]:
     """ resolves representation given with devices (DevicesTorchness) """
     devices_base = _get_devices_torchness(
         devices=    devices,
         mem_free=   mem_free,
-        load_max=   load_max,
-        logger=     logger or get_pylogger(name='get_devices', level=loglevel))
+        load_max=   load_max)
     d = [f'cuda:{dev}' if type(dev) is int else 'cpu' for dev in devices_base] if torch_namespace else devices_base
     if not d and eventually_cpu:
         d = ['cpu']
     return d
 
 
-def mask_cuda(ids: Optional[List[int] or int]=None):
+def mask_cuda(ids: list[int] | int | None = None):
     """ masks GPUs from given list of ids or single one """
     if ids is None:
         ids = []
@@ -187,20 +176,17 @@ def mask_cuda(ids: Optional[List[int] or int]=None):
     os.environ["CUDA_VISIBLE_DEVICES"] = mask
 
 
-def mask_cuda_devices(
-        devices: DevicesTorchness=  -1,
-        logger=                     None):
+def mask_cuda_devices(devices: DevicesTorchness = -1):
     """ wraps mask_cuda to hold DevicesTorchness """
-    devices = get_devices(devices, torch_namespace=False, logger=logger)
+    devices = get_devices(devices, torch_namespace=False)
     ids = [d for d in devices if type(d) is int]
     mask_cuda(ids)
 
 
-def monitor(pause:float=0.1, print_n:int=10):
+def monitor(pause: float = 0.1, print_n: int = 10):
     """ monitors GPUs usage and memory in the loop
     :param float pause: amount of time loop is paused
-    :param int print_n: prints report every N loops
-    """
+    :param int print_n: prints report every N loops"""
 
     devs = GPUtil.getGPUs()
     peaks_load = {d.id: 0.0 for d in devs}
@@ -226,7 +212,6 @@ def monitor(pause:float=0.1, print_n:int=10):
         s += f'>>> peak: '
         for _id in peaks_load:
             s += f'{_id}:{peaks_load[_id]}%/{peaks_mem[_id]}MB '
-
 
         time.sleep(pause)
 

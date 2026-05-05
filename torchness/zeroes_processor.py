@@ -1,5 +1,4 @@
 import torch
-from typing import Optional, Dict, List, Union
 
 from torchness.base import TNS, NUM
 
@@ -11,18 +10,18 @@ class ZeroesProcessor:
 
     def __init__(
             self,
-            intervals: tuple=   (50,500,5000),
-            tag_pfx=            'nane',     # prefix of tag in TB, (Not Activated NEurons)
-            tbwr: Optional=     None):      # if given will put summaries to TB with intervals frequencies
+            intervals: tuple = (50, 500, 5000),
+            tag_pfx = 'nane',
+            tbwr = None):
         self.intervals = intervals
-        self.zsDL: Dict[int,List[TNS]] = {k: [] for k in self.intervals}
-        self.single: List[TNS] = []
+        self.zsDL: dict[int, list[TNS]] = {k: [] for k in self.intervals}
+        self.single: list[TNS] = []
         self.tag_pfx = tag_pfx
         self.tbwr = tbwr
         self.step = 0
 
     @staticmethod
-    def _extract_TNS_from(l:List) -> List[TNS]:
+    def _extract_TNS_from(l: list) -> list[TNS]:
         """ extract TNS from a (nested) list of TNS """
         tL = []
         for e in l:
@@ -32,9 +31,9 @@ class ZeroesProcessor:
 
     def process(
             self,
-            zeroes: Union[TNS,List],
-            step: Optional[int]=None
-    ) -> Dict[int,NUM]:
+            zeroes: TNS | list,
+            step: int | None = None,
+    ) -> dict[int, NUM]:
         """ processes next zeroes
         returned dict may be empty if no interval passed
         zeroes may be given as Tensor or (nested) list of Tensor """

@@ -1,14 +1,12 @@
 from collections import OrderedDict
 import torch
-from typing import Optional
-
 from torchness.initialize import my_initializer
 from torchness.base import NUM
 
 
 def ckpt_nfo(
-        ckptA: str,                     # checkpoint A (file name)
-        ckptB: Optional[str]=   None,   # checkpoint B (file name)
+        ckptA: str,
+        ckptB: str | None = None,
 ):
     """ returns checkpoint info, if given two - checks if B is equal A """
 
@@ -37,7 +35,7 @@ def ckpt_nfo(
 
 def mrg_ckpts(
         ckptA: str,             # checkpoint A (file name)
-        ckptB: Optional[str],   # checkpoint B (file name), for None takes 100% ckptA
+        ckptB: str | None,
         ckptM: str,             # checkpoint merged (file name)
         ratio: NUM=     0.5,    # ratio of merge
         noise: NUM=     0.0,    # noise factor, amount of noise added to new value <0.0;1.0>

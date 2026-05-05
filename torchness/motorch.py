@@ -1,11 +1,10 @@
 import numpy as np
 import shutil
 import torch
-from typing import Optional, Dict, Tuple, Any, Union, List
+from typing import Any
 
 from pypaq.lipytools.printout import stamp, ProgBar
 from pypaq.lipytools.files import prep_folder
-from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 from pypaq.pms.base import get_class_init_params, point_trim
 from pypaq.pms.parasave import ParaSave
@@ -33,15 +32,15 @@ class Module(torch.nn.Module):
     default_score_format = '.5f'
     score_should_increase = True
 
-    def __init__(self, logger=None, loglevel=20):
+    def __init__(self, loglevel: int = 20):
+        import logging
         super().__init__()
-        if not logger:
-            logger = get_pylogger(name=f'{self.__class__.__name__}_logger', level=loglevel)
-        self.logger = logger
+        self.logger = logging.getLogger(f'{self.__class__.__module__}.{self.__class__.__qualname__}')
+        self.logger.setLevel(loglevel)
 
-    def get_optimizer_definition(self) -> Tuple[type(torch.optim.Optimizer), Dict]:
+    def get_optimizer_definition(self) -> tuple[type[torch.optim.Optimizer], dict]:
         """if implemented, MOTorch will use Optimizer definition returned:
-        Tuple[optimizer type, optimizer kwargs]
+        tuple[optimizer type, optimizer kwargs]
 
         * optimizer class may be given with kwarg (opt_class) to MOTorch,
         but if it is needed to define optimizer with its kwargs, this is the way"""
@@ -156,15 +155,13 @@ class MOTorch(ParaSave):
 
     def __init__(
             self,
-            module_type: Optional[type(Module)]=    None,
-            name: Optional[str]=                    None,
-            name_timestamp=                         False,
-            save_topdir: Optional[str]=             None,
-            save_fn_pfx: Optional[str]=             None,
-            tbwr: Optional[TBwr]=                   None,
-            logger=                                 None,
-            loglevel=                               20,
-            flat_child=                             False,
+            module_type: type[Module] | None = None,
+            name: str | None = None,
+            name_timestamp = False,
+            save_topdir: str | None = None,
+            save_fn_pfx: str | None = None,
+            tbwr: TBwr | None = None,
+            loglevel: int = 20,
             **kwargs):
 
         # TODO: temporary, delete later
@@ -182,8 +179,6 @@ class MOTorch(ParaSave):
         if not save_topdir: save_topdir = self.SAVE_TOPDIR
         if not save_fn_pfx: save_fn_pfx = self.SAVE_FN_PFX
 
-        # some early kwargs overrides
-
         if kwargs.get('hpmser_mode', False):
             loglevel = 50
             kwargs['read_only'] = True
@@ -193,22 +188,21 @@ class MOTorch(ParaSave):
 
         _read_only = kwargs.get('read_only', False)
 
-        self.logger = logger or get_pylogger(
-            name=       name,
-            add_stamp=  False,
-            folder=     None if _read_only else self._get_model_dir(model_name=name, save_topdir=save_topdir),
-            level=      loglevel,
-            flat_child= flat_child)
+        # set name early so get_logger can use it for a named logger
+        self.name = name
+        self.logger = self.get_logger(
+            level=  loglevel,
+            folder= None if _read_only else self._get_model_dir(model_name=name, save_topdir=save_topdir))
 
         self.logger.info(f'*** MOTorch : {name} *** initializes ..')
         self.logger.info(f'> {name} save_topdir: {save_topdir}{" <- read only mode!" if _read_only else ""}')
 
-        # init as a ParaSave
+        # init as a ParaSave (will call get_logger again — same logger name, same object, no duplicate FileHandler)
         super().__init__(
             name=           name,
             save_topdir=    save_topdir,
             save_fn_pfx=    save_fn_pfx,
-            logger=         get_child(self.logger, 'ParaSave_logger'),
+            loglevel=       loglevel,
             **kwargs)
         point_saved = self.get_point()
 
@@ -229,7 +223,7 @@ class MOTorch(ParaSave):
         module_type = module_type_saved or module_type
         self.logger.info(f'> {self.name} module_type: {module_type.__name__}')
 
-        _module_init_def = get_class_init_params(module_type)['with_defaults'] # defaults of self.module_type.__init__
+        _module_init_def = get_class_init_params(module_type)['with_defaults']
 
         ### update in proper order
 
@@ -241,20 +235,18 @@ class MOTorch(ParaSave):
         self._point.update(kwargs)
         self._point["module_type"] = module_type
 
-        # remove logger (may come from Module init defaults)
-        if 'logger' in self._point:
-            self._point.pop('logger')
+        # remove logger/loglevel (may come from Module init defaults)
+        for k in ('logger', 'loglevel'):
+            if k in self._point:
+                self._point.pop(k)
 
         ### finally resolve device
 
-        # device parameter, may be given to MOTorch in DevicesTorchness type
-        # it is cast to PyTorch namespace here
         self.logger.debug(f'> {self.name} resolves devices, given: {self._point["device"]}')
         self.logger.debug(f'> torch.cuda.is_available(): {torch.cuda.is_available()}')
         devices = get_devices(
             devices=            self._point["device"],
-            torch_namespace=    True,
-            logger=             get_child(self.logger, 'get_devices'))
+            torch_namespace=    True)
         if not devices:
             self.logger.warning(f'given device: {self._point["device"]} is not available, using CPU')
             devices = ['cpu']
@@ -265,7 +257,6 @@ class MOTorch(ParaSave):
         ### prepare Module point and extract not used kwargs
 
         self._module_point = point_trim(module_type, self._point)
-        self._module_point['logger'] = get_child(self.logger, 'Moduleloggerger')
 
         rep = (f'{self.name} POINT sources:\n'
                f'> PARASAVE_DEFAULTS:        {ParaSave.PARASAVE_DEFAULTS}\n'
@@ -340,7 +331,7 @@ class MOTorch(ParaSave):
             anneal_start=   self.anneal_start,
             anneal_base=    self.anneal_base,
             anneal_mul=     self.anneal_mul,
-            logger=         get_child(self.logger, 'ScaledLR'))
+            loglevel=       loglevel)
 
         self._grad_clipper = GradClipperMAVG(
             do_clip=        self.gc_do_clip,
@@ -350,7 +341,7 @@ class MOTorch(ParaSave):
             first_avg=      self.gc_first_avg,
             max_clip=       self.gc_max_clip,
             max_upd=        self.gc_max_upd,
-            logger=         get_child(self.logger, 'GradClipperMAVG'))
+            loglevel=       loglevel)
 
         # MOTorch by default is not in training mode
         self.train(False)
@@ -367,18 +358,17 @@ class MOTorch(ParaSave):
         self.logger.debug(str(self))
         self.logger.info(f'MOTorch init finished!')
 
-    def exclude_from_params(self) -> List[str]:
+    def exclude_from_params(self) -> list[str]:
         return super().exclude_from_params() + ['module']
 
     @classmethod
     def _get_name(
             cls,
-            module_type: Optional[type(Module)]=    None,
-            name: Optional[str]=                    None,
-            name_timestamp=                         False,
+            module_type: type[Module] | None = None,
+            name: str | None = None,
+            name_timestamp = False,
     ) -> str:
         """resolves MOTorch name"""
-        # resolve name
         if not name:
             name = f'{module_type.__name__}_{cls.__name__}'
         if name_timestamp:
@@ -387,17 +377,15 @@ class MOTorch(ParaSave):
 
     # **************************************************************************** model call (run NN with data) methods
 
-    def convert(self, data:Any) -> TNS:
+    def convert(self, data: Any) -> TNS:
         """converts given data to TNS compatible with self (device,dtype)"""
 
-        # do not convert None
         if type(data) is not None:
 
             if type(data) is not torch.Tensor:
                 if type(data) is np.ndarray: data = torch.from_numpy(data)
                 else:                        data = torch.tensor(data)
 
-            # convert device + float types
             data = data.to(self.device, self.dtype if data.is_floating_point() or data.is_complex() else None)
 
         return data
@@ -428,7 +416,7 @@ class MOTorch(ParaSave):
         self._scheduler.step()              # apply LR scheduler
         self.train_step += 1                # update step
 
-        out['currentLR'] = self._scheduler.get_lr()[0] # INFO: currentLR of the first group is taken
+        out['currentLR'] = self._scheduler.get_lr()[0]
         out.update(gnD)
 
         return out
@@ -436,22 +424,22 @@ class MOTorch(ParaSave):
     # *********************************************************************************************** load / save / copy
 
     @classmethod
-    def _get_model_dir(cls, model_name:str, save_topdir:Optional[str]=None) -> str:
+    def _get_model_dir(cls, model_name: str, save_topdir: str | None = None) -> str:
         """returns model directory path"""
         if not save_topdir: save_topdir = cls.SAVE_TOPDIR
         return f'{save_topdir}/{model_name}'
 
     @classmethod
-    def _get_ckpt_path(cls, model_name:str, save_topdir:Optional[str]=None) -> str:
+    def _get_ckpt_path(cls, model_name: str, save_topdir: str | None = None) -> str:
         """returns path of checkpoint pickle file"""
         model_dir = cls._get_model_dir(model_name=model_name, save_topdir=save_topdir)
         return f'{model_dir}/{model_name}.pt'
 
     def load_ckpt(
             self,
-            name: Optional[str]=        None,  # allows to load custom name (model_name)
-            save_topdir: Optional[str]= None,  # allows to load from custom save_topdir
-    ) -> Optional[dict]:
+            name: str | None = None,
+            save_topdir: str | None = None,
+    ) -> dict | None:
         """tries to load checkpoint and return additional data"""
 
         ckpt_path = self._get_ckpt_path(
@@ -461,20 +449,19 @@ class MOTorch(ParaSave):
         save_obj = None
 
         try:
-            save_obj = torch.load(f=ckpt_path, map_location=self.device, weights_only=True) # immediately place all tensors to current device (not previously saved one)
+            save_obj = torch.load(f=ckpt_path, map_location=self.device, weights_only=True)
             self.module.load_state_dict(save_obj.pop('model_state_dict'))
             self.logger.info(f'> {self.name} checkpoint loaded from {ckpt_path}')
         except Exception as e:
-            # this exception logs as INFO since it is quite normal to not load checkpoint while init
             self.logger.info(f'> {self.name} checkpoint NOT loaded because of exception: {e}')
 
         return save_obj
 
     def save_ckpt(
             self,
-            name: Optional[str]=                None,   # allows to save under custom name (model_name)
-            save_topdir: Optional[str]=         None,   # allows to save in custom save_topdir
-            additional_data: Optional[Dict]=    None,   # allows to save additional
+            name: str | None = None,
+            save_topdir: str | None = None,
+            additional_data: dict | None = None,
     ) -> None:
         """saves model checkpoint & optionally additional data"""
 
@@ -493,7 +480,6 @@ class MOTorch(ParaSave):
         if self.read_only:
             raise MOTorchException('read_only MOTorch cannot be saved!')
 
-        # to properly start grad clipping after load
         self['gc_first_avg'] = False
         self['gc_start_val'] = float(self._grad_clipper.mavg())
 
@@ -506,8 +492,8 @@ class MOTorch(ParaSave):
             cls,
             name_src: str,
             name_trg: str,
-            save_topdir_src: Optional[str]= None,
-            save_topdir_trg: Optional[str]= None):
+            save_topdir_src: str | None = None,
+            save_topdir_trg: str | None = None):
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
         if not save_topdir_trg: save_topdir_trg = save_topdir_src
         shutil.copyfile(
@@ -519,12 +505,11 @@ class MOTorch(ParaSave):
             cls,
             name_src: str,
             name_trg: str,
-            save_topdir_src: Optional[str]= None,
-            save_topdir_trg: Optional[str]= None,
-            save_fn_pfx: Optional[str]=     None,
-            device=                         None,
-            logger=                         None,
-            loglevel=                       30):
+            save_topdir_src: str | None = None,
+            save_topdir_trg: str | None = None,
+            save_fn_pfx: str | None = None,
+            device = None,
+            loglevel: int = 30):
         """copies full MOTorch folder (POINT & checkpoints)"""
 
         if not save_topdir_src: save_topdir_src = cls.SAVE_TOPDIR
@@ -537,7 +522,6 @@ class MOTorch(ParaSave):
             save_topdir_src=    save_topdir_src,
             save_topdir_trg=    save_topdir_trg,
             save_fn_pfx=        save_fn_pfx,
-            logger=             logger,
             loglevel=           loglevel,
             device=             device)
 
@@ -552,14 +536,14 @@ class MOTorch(ParaSave):
     @classmethod
     def gx_ckpt(
             cls,
-            nameA: str,                     # name parent A
-            nameB: str,                     # name parent B
-            name_child: str,                # name child
-            save_topdirA: Optional[str]=        None,
-            save_topdirB: Optional[str]=        None,
-            save_topdir_child: Optional[str]=   None,
-            ratio: float=                       0.5,
-            noise: float=                       0.03,
+            nameA: str,
+            nameB: str,
+            name_child: str,
+            save_topdirA: str | None = None,
+            save_topdirB: str | None = None,
+            save_topdir_child: str | None = None,
+            ratio: float = 0.5,
+            noise: float = 0.03,
     ):
         """GX on 2 checkpoints only of saved 2 MOTorch"""
 
@@ -580,18 +564,17 @@ class MOTorch(ParaSave):
     def gx_saved(
             cls,
             name_parentA: str,
-            name_parentB: Optional[str],    # if not given makes GX only with main parent
+            name_parentB: str | None,
             name_child: str,
-            save_topdir_parentA: Optional[str]= None,
-            save_topdir_parentB: Optional[str]= None,
-            save_topdir_child: Optional[str]=   None,
-            save_fn_pfx: Optional[str]=         None,
-            device=                             None,
-            do_gx_ckpt=                         True,
-            ratio: float=                       0.5,
-            noise: float=                       0.03,
-            logger=                             None,
-            loglevel=                           30,
+            save_topdir_parentA: str | None = None,
+            save_topdir_parentB: str | None = None,
+            save_topdir_child: str | None = None,
+            save_fn_pfx: str | None = None,
+            device = None,
+            do_gx_ckpt = True,
+            ratio: float = 0.5,
+            noise: float = 0.03,
+            loglevel: int = 30,
     ) -> None:
         """performs GX on saved MOTorch"""
 
@@ -606,7 +589,6 @@ class MOTorch(ParaSave):
             save_topdir_parentB=    save_topdir_parentB,
             save_topdir_child=      save_topdir_child,
             save_fn_pfx=            save_fn_pfx,
-            logger=                 logger,
             loglevel=               loglevel)
 
         if do_gx_ckpt:
@@ -619,14 +601,12 @@ class MOTorch(ParaSave):
                 save_topdir_child=  save_topdir_child,
                 ratio=              ratio,
                 noise=              noise)
-        # build and save to have checkpoint saved
         else:
             child = cls(
                 name=               name_child,
                 save_topdir=        save_topdir_child or save_topdir_parentA,
                 save_fn_pfx=        save_fn_pfx,
                 device=             device,
-                logger=             logger,
                 loglevel=           loglevel)
             child.save()
 
@@ -634,15 +614,14 @@ class MOTorch(ParaSave):
 
     def load_data(
             self,
-            data_TR: Dict[str,np.ndarray],
-            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=   None,
-            split_factor: float=                                                0.0):
+            data_TR: dict[str, np.ndarray],
+            data_TS: dict[str, NPL] | dict[str, dict[str, NPL]] | None = None,
+            split_factor: float = 0.0):
         """converts and loads data to Batcher"""
 
         data_TR = {k: self.convert(data_TR[k]) for k in data_TR}
 
         if data_TS:
-            # named test-set
             if type(list(data_TS.values())[0]) is dict:
                 for k in data_TS:
                     data_TS[k] = {sk: self.convert(data_TS[k][sk]) for sk in data_TS[k]}
@@ -655,23 +634,22 @@ class MOTorch(ParaSave):
             split_factor=   split_factor,
             batch_size=     self.batch_size,
             batching_type=  'random',
-            seed=           self.seed,
-            logger=         get_child(self.logger, 'Batcher'))
+            seed=           self.seed)
 
     def run_train(
             self,
-            data_TR: Optional[Dict[str,np.ndarray]]=None,
-            data_TS: Optional[Union[Dict[str,NPL], Dict[str,Dict[str,NPL]]]]=None,
-            split_factor: float=        0.0,
-            n_batches: Optional[int]=   None,
-            test_freq=                  100,
-            mov_avg_factor=             0.1,
-            save_max=                   True,
-            empty_cuda_cache: bool=     False,
-        ) -> Optional[float]:
+            data_TR: dict[str, np.ndarray] | None = None,
+            data_TS: dict[str, NPL] | dict[str, dict[str, NPL]] | None = None,
+            split_factor: float = 0.0,
+            n_batches: int | None = None,
+            test_freq = 100,
+            mov_avg_factor = 0.1,
+            save_max = True,
+            empty_cuda_cache: bool = False,
+        ) -> float | None:
         """trains model, returns optional test score
 
-        data_TR: accepts also Dict[str,torch.Tensor]
+        data_TR: accepts also dict[str, torch.Tensor]
         test_freq: number of batches between tests
         save_max: saves model while training (after best test)
         empty_cuda_cache: empties cuda cache every batch
@@ -694,19 +672,18 @@ class MOTorch(ParaSave):
         tr_metrics_accumulated = {}
 
         ts_score_name = self.module.default_score
-        ts_score_best = None                    # test score best value
-        ts_score_all_results = []               # test score all results
-        ts_score_mav = MovAvg(mov_avg_factor)   # test score moving average
+        ts_score_best = None
+        ts_score_all_results = []
+        ts_score_mav = MovAvg(mov_avg_factor)
 
-        # initial save
         if not self.read_only and save_max:
             self.save_ckpt()
 
-        ts_bIX = [bIX for bIX in range(n_batches+1) if not bIX % test_freq] # batch indexes when test will be performed
+        ts_bIX = [bIX for bIX in range(n_batches+1) if not bIX % test_freq]
         if not ts_bIX:
             raise MOTorchException('model SHOULD BE tested while training, but no test indexes are given')
-        ten_factor = int(0.1*len(ts_bIX)) # number of tests for last 10% of training
-        if ten_factor < 1: ten_factor = 1 # we need at least one result
+        ten_factor = int(0.1*len(ts_bIX))
+        if ten_factor < 1: ten_factor = 1
         if self.hpmser_mode: ts_bIX = ts_bIX[-ten_factor:]
 
         _ds = self.module.default_score
@@ -768,7 +745,6 @@ class MOTorch(ParaSave):
                     prog(n=batch_IX, prefix=prog_nfo)
                     tr_metrics_accumulated = {}
 
-                    # model is saved for best ts_score for the first_key (TS name)
                     if k==first_key and ts_score is not None and (
                             (ts_score > ts_score_best and self.module.score_should_increase) or
                             (ts_score < ts_score_best and not self.module.score_should_increase)):
@@ -787,7 +763,6 @@ class MOTorch(ParaSave):
             self.logger.info(f"loading {self.name} checkpoint saved for max score ..")
             self.load_ckpt()
 
-        # weighted (linear ascending weight) test score for last 10% test results
         else:
             if ts_score_all_results:
                 ts_score_fin = 0.0
@@ -809,9 +784,9 @@ class MOTorch(ParaSave):
 
     def run_test(
             self,
-            data: Optional[Dict[str,np.ndarray]]=   None,
-            split_factor: float=                    1.0,
-    ) -> Dict[str,DTNS]:
+            data: dict[str, np.ndarray] | None = None,
+            split_factor: float = 1.0,
+    ) -> dict[str, DTNS]:
         """tests model, returns dict {testset_name:DTNS} where DTNS are metrics"""
 
         _mode = self.training
@@ -861,7 +836,7 @@ class MOTorch(ParaSave):
         self.baseLR = lr
         self._scheduler.update_base_lr0(lr)
 
-    def train(self, mode:bool=True):
+    def train(self, mode: bool = True):
         return self.module.train(mode)
 
     @property
@@ -872,7 +847,7 @@ class MOTorch(ParaSave):
     def tbwr(self):
         return self._TBwr
 
-    def log_TB(self, value, tag:str, step:Optional[int]=None):
+    def log_TB(self, value, tag: str, step: int | None = None):
         """logs value to TB"""
         if step is None:
             step = self.train_step
@@ -880,7 +855,7 @@ class MOTorch(ParaSave):
             self._TBwr.add(value=value, tag=tag, step=step)
         else: self.logger.warning(f'{self.name} cannot log to TensorBoard since \'do_TB\' flag was set to False!')
 
-    def log_histogram_TB(self, values, tag:str, step:Optional[int]=None, bins="tensorflow"):
+    def log_histogram_TB(self, values, tag: str, step: int | None = None, bins="tensorflow"):
         """logs values to TB histogram"""
         if step is None:
             step = self.train_step

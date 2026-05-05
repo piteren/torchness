@@ -1,6 +1,5 @@
 import math
 import numpy as np
-from typing import List, Optional, Union
 from tqdm import tqdm
 
 from torchness.base import INI, TNS, DTNS
@@ -20,7 +19,7 @@ class STextCSF(Module):
             hidden_width: int=                      30,
             hidden_dropout: float=                  0.0,
             num_classes: int=                       2,
-            class_weights: Optional[List[float]]=   None,
+            class_weights: list[float] | None = None,
             initializer: INI=                       None,
             **kwargs):
 
@@ -37,12 +36,11 @@ class STextCSF(Module):
             hidden_dropout= hidden_dropout,
             num_classes=    num_classes,
             class_weights=  class_weights,
-            initializer=    initializer,
-            logger=         self.logger)
+            initializer=    initializer)
 
     def encode(
             self,
-            texts: Union[str, List[str]],
+            texts: str | list[str],
             show_progress_bar=  'auto',
             device=             None,
     ) -> np.ndarray:
@@ -66,7 +64,7 @@ class STextCSF_MOTorch(MOTorch):
 
     def __init__(
             self,
-            module_type: Optional[type(STextCSF)]=  STextCSF,
+            module_type: type[STextCSF] | None = STextCSF,
             enc_batch_size=                         128,    # number of lines in batch for embeddings
             fwd_batch_size=                         256,    # number of embeddings in batch for probs
             **kwargs):
@@ -79,7 +77,7 @@ class STextCSF_MOTorch(MOTorch):
 
     def get_embeddings(
             self,
-            lines: Union[str, List[str]],
+            lines: str | list[str],
             show_progress_bar=      'auto',
     ) -> np.ndarray:
         if type(lines) is str: lines = [lines]
@@ -91,7 +89,7 @@ class STextCSF_MOTorch(MOTorch):
             show_progress_bar=  show_progress_bar,
             device=             self.device) # needs to give device here because of SentenceTransformer bug in encode() #153
 
-    def get_probs(self, lines:Union[str, List[str]]) -> np.ndarray:
+    def get_probs(self, lines:str | list[str]) -> np.ndarray:
 
         embs = self.get_embeddings(lines)
 
@@ -105,7 +103,7 @@ class STextCSF_MOTorch(MOTorch):
 
         return probs
 
-    def get_probsL(self, linesL:List[List[str]]) -> List[np.ndarray]:
+    def get_probsL(self, linesL: list[list[str]]) -> list[np.ndarray]:
 
         lines = []
         for l in linesL:

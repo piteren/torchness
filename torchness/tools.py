@@ -2,7 +2,6 @@ from pypaq.lipytools.stats import msmx
 from pypaq.lipytools.plots import histogram
 from sklearn.metrics import f1_score
 import torch
-from typing import Tuple, Optional
 
 from torchness.base import TNS, DTNS, TorchnessException
 
@@ -46,7 +45,7 @@ def inspect_params(
         module: torch.nn.Module,
         inspect_name: str,
         detailed: bool=             False, # every param separately
-        save_dir: Optional[str]=    None,
+        save_dir: str | None=    None,
 ) -> str:
     """ inspects params and gradients """
 
@@ -107,8 +106,8 @@ def perplexity(logits:TNS, target:TNS) -> TNS:
 
 def accuracy(
         target: TNS,
-        pred: Optional[TNS],
-        logits: Optional[TNS],
+        pred: TNS | None,
+        logits: TNS | None,
 ) -> TNS:
     if (pred is None and logits is None) or (pred is not None and logits is not None):
         raise TorchnessException("only one of 'pred' and 'logits' should be specified!")
@@ -118,8 +117,8 @@ def accuracy(
 
 def f1(
         target: TNS,
-        pred: Optional[TNS],
-        logits: Optional[TNS],
+        pred: TNS | None,
+        logits: TNS | None,
         average=    'weighted',
 ) -> float:
         """ baseline F1 implementation for logits & lables
@@ -153,7 +152,7 @@ def mean_square_error(pred:TNS, target:TNS):
     return torch.nn.functional.mse_loss(input=pred, target=target)
 
 
-def diff_avg_max(pred:TNS, target:TNS) -> Tuple[TNS,TNS,TNS]:
+def diff_avg_max(pred: TNS, target: TNS) -> tuple[TNS, TNS, TNS]:
     """ differences (similar to MSE) of N-dim pred and N-dim target
     returns:
     probs diff avg

@@ -1,28 +1,25 @@
 import numpy as np
-from pypaq.lipytools.pylogger import get_pylogger
+from pypaq.lipytools.pylogger import Logged
 from pypaq.lipytools.printout import nice_scin
 import torch
-from typing import Optional, List
 
 
-class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
+class ScaledLR(torch.optim.lr_scheduler.LRScheduler, Logged):
     """ Applies warm-up and annealing for LR of 0 group.
     ScaledLR.step() should be called every update / batch / step """
 
     def __init__(
             self,
             optimizer,
-            step: int=                      0,      # current step (to start with)
-            warmup_end: Optional[int]=      1000,   # warm-up starts at 0 step and goes for warmup_end steps
-            anneal_start: Optional[int]=    10_000, # None turns off annealing
-            anneal_base: float=             0.999,  # 1.0 turns off annealing, lower values speed-up
-            anneal_mul: float=              1.0,    # higher values speed-up annealing
-            last_epoch=                     -1,
-            logger=                         None,
-            loglevel=                       20,
+            step: int = 0,
+            warmup_end: int | None = 1000,
+            anneal_start: int | None = 10_000,
+            anneal_base: float = 0.999,
+            anneal_mul: float = 1.0,
+            last_epoch = -1,
+            loglevel: int = 20,
     ):
-
-        self.logger = logger or get_pylogger(name='ScaledLR', level=loglevel)
+        self.logger = self.get_logger(level=loglevel)
 
         self._step = step
         self.w_end = warmup_end
@@ -36,9 +33,9 @@ class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
         """ updates LR of group 0 """
         self.base_lrs[0] = lr
 
-    def get_lr(self) -> List[float]:
+    def get_lr(self) -> list[float]:
 
-        lrs = np.asarray(self.base_lrs) # self.base_lrs is a list that keeps baseLR of groups
+        lrs = np.asarray(self.base_lrs)
         if self.w_end and self._step < self.w_end:
             w_ratio = self._step / self.w_end
             lrs *= w_ratio
@@ -54,6 +51,6 @@ class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
         self.logger.debug(f'ScaledLR scheduler step:{self._step}, resulting LR:{nice_scin(lrs[0])}')
         return lrs.tolist()
 
-    def step(self, epoch:Optional[int]=None):
+    def step(self, epoch: int | None = None):
         super(ScaledLR, self).step(epoch)
         self._step += 1

@@ -1,6 +1,5 @@
 import math
 import torch
-from typing import Optional
 
 from torchness.base import ACT, INI, TNS, TorchnessException
 from torchness.initialize import my_initializer
@@ -144,8 +143,8 @@ class LayRES(torch.nn.Module):
 
     def __init__(
             self,
-            in_features: Optional[int]= None,
-            dropout: float=             0.0):
+            in_features: int | None = None,
+            dropout: float = 0.0):
 
         if dropout and in_features is None:
             raise TorchnessException('LayRES with dropout needs to know its in_features (int) - cannot be None')

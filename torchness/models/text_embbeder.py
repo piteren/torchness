@@ -1,6 +1,5 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from typing import List, Union
 
 from torchness.motorch import MOTorch, Module
 
@@ -21,7 +20,7 @@ class TextEMB(Module):
         self.enc_batch_size = enc_batch_size
         self.logger.info(f'*** TextEMB : {self.st_name} *** initialized, feats width:{self.width} seq length:{self.length}')
 
-    def tokenize(self, texts:Union[str,List[str]]) -> Union[List[str], List[List[str]]]:
+    def tokenize(self, texts:str | list[str]) -> list[str] | list[list[str]]:
         tokenizer = self.st_model.tokenizer
         if type(texts) is str:
             return tokenizer.tokenize(texts)
@@ -30,7 +29,7 @@ class TextEMB(Module):
     # original, wrapped version
     def encode(
             self,
-            texts: Union[str,List[str]],
+            texts: str | list[str],
             show_progress_bar=  True,
             device=             None,
     ) -> np.ndarray:
@@ -52,10 +51,10 @@ class TextEMB(Module):
 # is MOTorch for given st_name (SentenceTransformer) based on TextEMB module
 class TextEMB_MOTorch(MOTorch):
 
-    def __init__(self, module_type:type(TextEMB)=TextEMB, **kwargs):
+    def __init__(self, module_type: type[TextEMB] = TextEMB, **kwargs):
         super().__init__(module_type=module_type, **kwargs)
 
-    def get_tokens(self, lines:Union[str, List[str]]) -> Union[List[str], List[List[str]]]:
+    def get_tokens(self, lines:Union[str, List[str]]) -> list[str] | list[list[str]]:
         self.logger.info(f'{self.name} prepares tokens for {len(lines)} lines ..')
         return self.module.tokenize(lines)
 

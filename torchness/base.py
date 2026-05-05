@@ -1,8 +1,8 @@
 from pypaq.pytypes import ARR
 import torch
-from typing import Callable, Sequence, Type
+from collections.abc import Callable, Sequence
 
-ACT = Type[torch.nn.Module] | None  # activation type
+ACT = type[torch.nn.Module] | None  # activation type
 INI = Callable | None               # initializer type
 
 TNS = torch.Tensor                  # torch Tensor

@@ -1,5 +1,4 @@
 import torch
-from typing import Tuple, Optional
 
 from torchness.motorch import Module
 from torchness.base import INI, TNS, DTNS
@@ -22,7 +21,7 @@ class SFeatsCSF(Module):
             num_classes: int=                       2,      # output
             lay_norm=                               True,
             do_zeroes: bool=                        True,
-            class_weights: Optional[Tuple[float]]=  None,
+            class_weights: tuple[float, ...] | None = None,
             initializer: INI=                       None,
             **kwargs):
 

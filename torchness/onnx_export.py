@@ -1,15 +1,14 @@
 import onnxruntime as ort
 import torch
-from typing import Optional, Dict, List
 
 from torchness.nnmodule import NNModule
 
 
 def get_tested_model(
-        model: Optional[torch.nn.Module],
-        model_class: Optional[type(NNModule)],
-        model_ckpt_fp: Optional[str],
-        inputs: Dict[str,torch.Tensor],
+        model: torch.nn.Module | None,
+        model_class: type[NNModule] | None,
+        model_ckpt_fp: str | None,
+        inputs: dict[str, torch.Tensor],
 ):
 
     if not model and (not model_class or not model_ckpt_fp):
@@ -42,12 +41,12 @@ def get_tested_model(
 
 
 def export(
-        model: Optional[torch.nn.Module],
-        model_class: Optional[type(NNModule)],
-        model_ckpt_fp: Optional[str],
+        model: torch.nn.Module | None,
+        model_class: type[NNModule] | None,
+        model_ckpt_fp: str | None,
         onnx_model_path: str,
-        inputs: Dict[str,torch.Tensor],
-        output_names: List[str]):
+        inputs: dict[str, torch.Tensor],
+        output_names: list[str]):
 
     model = get_tested_model(model=model, model_class=model_class, model_ckpt_fp=model_ckpt_fp, inputs=inputs)
 
@@ -64,7 +63,7 @@ def export(
     )
 
 
-def play(onnx_model_path:str, inputs:Dict[str,torch.Tensor]):
+def play(onnx_model_path: str, inputs: dict[str, torch.Tensor]):
 
     sess_options = ort.SessionOptions()
     sess_options.intra_op_num_threads = 1

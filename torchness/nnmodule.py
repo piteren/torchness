@@ -1,11 +1,11 @@
-from pypaq.lipytools.pylogger import get_pylogger
+import logging
+from pypaq.lipytools.pylogger import Logged
 import torch
-from typing import Optional, Dict
 
 from torchness.tools import count_model_params
 
 
-class NNModule(torch.nn.Module):
+class NNModule(torch.nn.Module, Logged):
     """ Wraps torch.nn.Module with some additional tools.
     It is a much simpler version  of NN management class than MOTorch, useful in smaller projects.
 
@@ -20,19 +20,18 @@ class NNModule(torch.nn.Module):
 
     1. override __init__():
         a. pass all model params passed directly to it
-        b. pass seed, device, logger, loglevel
+        b. pass seed, device, loglevel
         c. add **kwargs_not_used for monitoring kwargs given to init, which are in fact not used by your module
-        d. call super().__init__() with params, seed, device, logger, loglevel, kwargs_not_used
+        d. call super().__init__() with params, seed, device, loglevel, kwargs_not_used
         example:
 
         def __init__(
                 self,
                     **here go params, like:
-                        d_model: Optional[int]= None,
-                        num_layers: int=        3,
+                        d_model: int | None = None,
+                        num_layers: int = 3,
                 seed=       123,
                 device=     'cuda',
-                logger=     None,
                 loglevel=   20,
                 **kwargs_not_used,
         ):
@@ -41,11 +40,10 @@ class NNModule(torch.nn.Module):
                 num_layers=         num_layers,
                 seed=               seed,
                 device=             device,
-                logger=             logger,
                 loglevel=           loglevel,
                 kwargs_not_used=    kwargs_not_used)
 
-            **here bild a module in self
+            **here build a module in self
 
             self.to(self.device)
 
@@ -53,36 +51,22 @@ class NNModule(torch.nn.Module):
 
     def __init__(
             self,
-            seed=                               123,
-            device=                             'cuda',
-            logger=                             None,
-            loglevel=                           20,
-            kwargs_not_used: Optional[Dict]=    None,
+            seed = 123,
+            device = 'cuda',
+            loglevel: int = 20,
+            kwargs_not_used: dict | None = None,
             **params):
-        """
-        :param seed:
-        :param device:
-        :param logger:
-        :param loglevel:
-        :param kwargs_not_used:
-            put here a dict of not used kwargs
-            -> a good practice to track them
-            -> only to be logged
-        :param params:
-            put here every NN hyperparameter """
 
         super().__init__()
 
-        if not logger:
-            logger = self.get_logger(loglevel)
-        self.logger = logger
+        self.logger = self.get_logger(level=loglevel)
         self.logger.info(f'*** NNModule ({self.__class__.__name__}) *** initializes ..')
 
         self.params = params
         self.params['seed'] = seed
         self.device = device
 
-        for p,pv in self.params.items():
+        for p, pv in self.params.items():
             self.logger.info(f'> {p:20}: {pv}')
         if kwargs_not_used:
             self.logger.info(f'>> kwargs_not_used: {kwargs_not_used}')
@@ -96,17 +80,13 @@ class NNModule(torch.nn.Module):
         """ forward pass (FWD) method, to be implemented """
         raise NotImplementedError
 
-    @classmethod
-    def get_logger(cls, loglevel=20):
-        return get_pylogger(name=cls.__name__, add_stamp=True, level=loglevel)
-
     def __str__(self):
         return (f'{self.__class__.__name__} (#{count_model_params(self)})\n'
                 f'> params: {self.params}\n'
                 f'{super().__str__()}')
 
-    def disable_grad(self, pattern:str):
-        for n,p in  self.named_parameters():
+    def disable_grad(self, pattern: str):
+        for n, p in self.named_parameters():
             if pattern in n:
                 self.logger.debug(f'disabled grad for {n}')
                 p.requires_grad = False
@@ -120,7 +100,7 @@ class NNModule(torch.nn.Module):
         n_trainable = 0
         n_not_trainable = 0
         s = f'{"---name---":50}{"---shape---":40}{"---trainable---"}\n'
-        for n,p in self.named_parameters():
+        for n, p in self.named_parameters():
             p_size = p.numel()
             if p.requires_grad:
                 trainable_size += p_size
@@ -135,16 +115,15 @@ class NNModule(torch.nn.Module):
         s += f' # non trainable: ({n_not_trainable:02}) {non_trainable_size} ({non_trainable_size/tot*100:.1f}%)'
         return s
 
-    def save(self, ckpt_fp:str):
-        torch.save(obj={"model":self.state_dict(), "params":self.params}, f=ckpt_fp)
+    def save(self, ckpt_fp: str):
+        torch.save(obj={"model": self.state_dict(), "params": self.params}, f=ckpt_fp)
 
     @classmethod
     def build(
             cls,
-            ckpt_fp: Optional[str]= None,
-            device=                 'cuda',
-            logger=                 None,
-            loglevel=               20,
+            ckpt_fp: str | None = None,
+            device = 'cuda',
+            loglevel: int = 20,
             **kwargs):
         """ Builds class object from a given ckpt or defaults.
         Object parameters should be saved with ckpt in 'params'.
@@ -154,27 +133,27 @@ class NNModule(torch.nn.Module):
         After saving object (with obj.save()),
         overriding with kwargs will be no longer needed """
 
-        if not logger:
-            logger = cls.get_logger(loglevel)
+        _logger = logging.getLogger(f'{cls.__module__}.{cls.__qualname__}.build')
+        _logger.setLevel(loglevel)
 
-        logger.info(f'building {cls.__name__} (NNModule) from ckpt: {ckpt_fp}')
-        logger.info(f'> device: {device}')
+        _logger.info(f'building {cls.__name__} (NNModule) from ckpt: {ckpt_fp}')
+        _logger.info(f'> device: {device}')
 
         module_kwargs = {}
         ckpt = None
         if ckpt_fp:
             ckpt = torch.load(f=ckpt_fp, map_location=device, weights_only=False)
-            logger.info(f'> ckpt got: {list(ckpt.keys())}')
+            _logger.info(f'> ckpt got: {list(ckpt.keys())}')
             if 'params' in ckpt:
                 ckpt_pms = ckpt['params']
-                logger.info(f'> params from ckpt: {ckpt_pms}')
+                _logger.info(f'> params from ckpt: {ckpt_pms}')
                 module_kwargs.update(ckpt_pms)
 
         if kwargs:
-            logger.info(f'> given kwargs: {kwargs}')
+            _logger.info(f'> given kwargs: {kwargs}')
             module_kwargs.update(kwargs)
         module_kwargs['device'] = device
-        module_kwargs['logger'] = logger
+        module_kwargs['loglevel'] = loglevel
 
         net = cls(**module_kwargs)
 

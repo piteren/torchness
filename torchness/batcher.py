@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from ompr.runner import OMPRunner, RunningWorker
-from pypaq.lipytools.pylogger import get_pylogger, get_child
+from pypaq.lipytools.pylogger import Logged
 import queue
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from torchness.base import DATNS, cat_arrays, copy_array
 
@@ -20,7 +20,7 @@ class BatcherException(Exception):
     pass
 
 
-def split_into_batches(data:DATNS, size:int) -> list[DATNS]:
+def split_into_batches(data: DATNS, size: int) -> list[DATNS]:
     """splits data into batches of given size"""
     split = []
     counter = 0
@@ -33,7 +33,7 @@ def split_into_batches(data:DATNS, size:int) -> list[DATNS]:
 
 def data_split(
         data: DATNS,
-        split_factor: float,    # factor of data separated into second set
+        split_factor: float,
         seed: int = 123,
 ) -> tuple[DATNS, DATNS]:
     """ splits given data into two sets """
@@ -59,32 +59,28 @@ def data_split(
     return dataA, dataB
 
 
-class BaseBatcher(ABC):
+class BaseBatcher(ABC, Logged):
     """ BaseBatcher prepares batches from chunks of training (TR) and testing (TS) data.
     It is an abstract class where load_data_TR_chunk() must be implemented.
     TS input data (unnamed chunk) is a dict: {axis_name: np.ndarray or torch.Tensor}.
     TS data may be given also as a dict of named test-sets (chunks): {testset_name: {chunk}} """
 
-    default_TS_name = '__TS__' # default name of testset when given as (unnamed) DATNS
+    default_TS_name = '__TS__'
 
     def __init__(
             self,
             data_TS: DATNS | dict[str, DATNS] | None = None,
             batch_size: int = 16,
-            batch_size_TS_mul: int = 2,  # TS batch_size multiplier
+            batch_size_TS_mul: int = 2,
             batching_type: str = 'random',
             seed: int = 123,
             timing_report: bool = False,
-            logger = None,
-            loglevel :int = 20,
+            loglevel: int = 20,
     ):
-        """device: if given, moves TR and TS data to device"""
         if batching_type not in BATCHING_TYPES:
             raise BatcherException('unknown batching_type')
 
-        self.logger = logger or get_pylogger(
-            name=   f'{self.__class__.__name__}_logger',
-            level=  loglevel)
+        self.logger = self.get_logger(level=loglevel)
 
         self._timing = {
             'load_chunk': [],
@@ -99,17 +95,16 @@ class BaseBatcher(ABC):
         self._batch_size = batch_size
         self._batch_size_TS_mul = batch_size_TS_mul
 
-        # attr below will be set when the first chunk will be loaded
         self._data_TR = {}
         self._keys = []
         self._data_TR_len = None
         self._ixmap = np.asarray([], dtype=int)
         self._ixmap_pointer = 0
-        self._get_next_chunk_and_extend_ixmap()  # load first chunk
+        self._get_next_chunk_and_extend_ixmap()
 
         if data_TS and type(list(data_TS.values())[0]) is not dict:
             data_TS = {self.default_TS_name: data_TS}
-        self._data_TS: dict[str, DATNS] = data_TS # type: ignore
+        self._data_TS: dict[str, DATNS] = data_TS  # type: ignore
         self._data_TS_len = sum([
             self._data_TS[k][self._keys[0]].shape[0] for k in self._data_TS]
         ) if self._data_TS else 0
@@ -145,16 +140,14 @@ class BaseBatcher(ABC):
 
         stime = time.time()
 
-        # set keys only once, with the first chunk
         if not self._keys:
             self._keys = sorted(list(chunk_next.keys()))
         chunk_next_len = len(chunk_next[self._keys[0]])
 
-        _ixmap_new = np.arange(chunk_next_len) # base
+        _ixmap_new = np.arange(chunk_next_len)
         if self.btype == 'random':
             self.rng.shuffle(_ixmap_new)
 
-        # concat left data with new chunk
         _ixmap_left = self._ixmap[self._ixmap_pointer:]
         _ixmap_left_size = len(_ixmap_left)
         if _ixmap_left_size:
@@ -175,7 +168,6 @@ class BaseBatcher(ABC):
 
     def get_batch(self) -> DATNS:
 
-        # set seed
         self.rng = np.random.default_rng(self.seed_counter)
         self.seed_counter += 1
 
@@ -187,7 +179,7 @@ class BaseBatcher(ABC):
 
         return {k: self._data_TR[k][indexes] for k in self._keys}
 
-    def get_TS_batches(self, name:str|None=None) -> list[DATNS]:
+    def get_TS_batches(self, name: str | None = None) -> list[DATNS]:
         """ if TS data was given as a dict of named test-sets then name (TS) has to be given,
         otherwise name=None """
 
@@ -210,7 +202,7 @@ class BaseBatcher(ABC):
 
         return self._TS_batches[name]
 
-    def get_data_size(self) -> tuple[int,int]:
+    def get_data_size(self) -> tuple[int, int]:
         """ returns current TR chunk dataset length and TS dataset length """
         return self._data_TR_len, self._data_TS_len
 
@@ -239,14 +231,14 @@ class BaseBatcher(ABC):
 class DataBatcher(BaseBatcher):
     """ DataBatcher prepares batches from a given training (TR) data and testing (TS) data.
     Input data is a dict: {key: np.ndarray or torch.Tensor}.
-    TS data may be given as a named test-set: Dict[str, DATNS] """
+    TS data may be given as a named test-set: dict[str, DATNS] """
 
     default_TS_name = '__TS__'
 
     def __init__(
             self,
             data_TR: DATNS,
-            split_factor: float=    0.0, # if > 0.0 and not data_TS then factor of data_TR will be put to data_TS
+            split_factor: float = 0.0,
             seed: int = 123,
             **kwargs,
     ):
@@ -264,7 +256,7 @@ class DataBatcher(BaseBatcher):
         super().__init__(seed=seed, **kwargs)
 
     def load_data_TR_chunk(self) -> DATNS:
-        return {k:self._data_TR_chunk[k] for k in self._data_TR_chunk}
+        return {k: self._data_TR_chunk[k] for k in self._data_TR_chunk}
 
 
 class FilesBatcher(BaseBatcher):
@@ -277,8 +269,7 @@ class FilesBatcher(BaseBatcher):
             self,
             data_files_fp: list[str],
             chunk_builder: Callable,
-            logger = None,
-            loglevel :int = 20,
+            loglevel: int = 20,
             **kwargs,
     ):
         """
@@ -287,9 +278,7 @@ class FilesBatcher(BaseBatcher):
         chunk_builder(file:str):
             function that should return chunk of data DATNS given file path """
 
-        self.logger = logger or get_pylogger(
-            name=   f'{self.__class__.__name__}_logger',
-            level=  loglevel)
+        self.logger = self.get_logger(level=loglevel)
 
         self._data_files_fp = data_files_fp
 
@@ -301,12 +290,12 @@ class FilesBatcher(BaseBatcher):
 
         self.loader_thread = threading.Thread(target=self._loader_loop)
         self.loader_thread.start()
-        self.q_to_loader.put('load') # put the first task
+        self.q_to_loader.put('load')
 
-        super().__init__(logger=self.logger, **kwargs)
-        
+        super().__init__(loglevel=loglevel, **kwargs)
+
     def _loader_loop(self):
-        
+
         self.logger.debug('loader started loop')
 
         while True:
@@ -334,7 +323,7 @@ class FilesBatcher(BaseBatcher):
         while True:
             if self._data_chunks:
                 data = self._data_chunks.pop(0)
-                self.q_to_loader.put('load') # put next task immediately
+                self.q_to_loader.put('load')
                 return data
             time.sleep(0.1)
 
@@ -352,13 +341,12 @@ class FilesBatcherMP(BaseBatcher):
     def __init__(
             self,
             data_TR_chunk_fp: list[str],
-            data_TS_chunk_fp: str | dict[str,str] | None,
+            data_TS_chunk_fp: str | dict[str, str] | None,
             chunk_processor_class: type[RunningWorker],
             rww_init_kwargs: dict | None = None,
             n_workers: int = 5,
             ordered_results: bool = True,
             raise_rww_exception: bool = False,
-            logger = None,
             loglevel: int = 20,
             **kwargs,
     ):
@@ -380,9 +368,7 @@ class FilesBatcherMP(BaseBatcher):
             allows for reproducibility of results,
             REMEMBER to keep order of data_TR files """
 
-        self.logger = logger or get_pylogger(
-            name=   f'{self.__class__.__name__}_logger',
-            level=  loglevel)
+        self.logger = self.get_logger(level=loglevel)
 
         n_test_files = 0 if not data_TS_chunk_fp else (1 if type(data_TS_chunk_fp) is str else len(data_TS_chunk_fp))
         self._data_TR_chunk_fp = data_TR_chunk_fp
@@ -401,18 +387,18 @@ class FilesBatcherMP(BaseBatcher):
             ordered_results=        ordered_results,
             rerun_crashed=          False,
             raise_rww_exception=    raise_rww_exception,
-            logger=                 get_child(logger=self.logger, change_level=10))
+            loglevel=               loglevel)
 
         # start TS workers
         n_ts_workers = 0
         data_TS = None
         if data_TS_chunk_fp:
             if type(data_TS_chunk_fp) is str:
-                self.ompr.process({'file':data_TS_chunk_fp})
+                self.ompr.process({'file': data_TS_chunk_fp})
                 n_ts_workers = 1
             else:
                 for fp in data_TS_chunk_fp.values():
-                    self.ompr.process({'file':fp})
+                    self.ompr.process({'file': fp})
                     n_ts_workers += 1
 
         # start TR workers
@@ -428,7 +414,7 @@ class FilesBatcherMP(BaseBatcher):
                 self._put_next_task_to_ompr()
             else:
                 data_TS = {}
-                for k,fp in data_TS_chunk_fp.items():
+                for k, fp in data_TS_chunk_fp.items():
                     data_TS[k] = self.ompr.get_result()
                     self.logger.info(f'> loaded and processed data_TS_chunk {k} from {fp}')
                     self._put_next_task_to_ompr()
@@ -437,22 +423,22 @@ class FilesBatcherMP(BaseBatcher):
             self.static_data = self.ompr.get_all_results()
             self.ompr.exit()
 
-        super().__init__(data_TS=data_TS, logger=self.logger, **kwargs)
+        super().__init__(data_TS=data_TS, loglevel=loglevel, **kwargs)
 
     def _put_next_task_to_ompr(self):
         file = self._data_TR_chunk_fp.pop(0)
         self._data_TR_chunk_fp.append(file)
-        self.ompr.process({'file':file})
+        self.ompr.process({'file': file})
 
     def load_data_TR_chunk(self) -> DATNS:
         if self.static_data:
             data = self.static_data.pop(0)
-            data_copy = {k: copy_array(data[k]) for k in data} # keep clean copy
+            data_copy = {k: copy_array(data[k]) for k in data}
             self.static_data.append(data_copy)
         else:
             data = self.ompr.get_result()
-            self._put_next_task_to_ompr()  # put next task immediately
-        return data # type: ignore
+            self._put_next_task_to_ompr()
+        return data  # type: ignore
 
     @property
     def num_TR_samples(self) -> int:

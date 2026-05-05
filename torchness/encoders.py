@@ -1,5 +1,4 @@
 import torch
-from typing import Optional, Tuple, Union
 
 from torchness.base import ACT, INI, TNS, DTNS, TorchnessException
 from torchness.initialize import bert_initializer, my_initializer
@@ -110,7 +109,7 @@ class EncDRT(torch.nn.Module):
             in_dropout: float=          0.0,            # dropout on input
             n_layers: int=              6,              # number of blocks
             shared_lays: bool=          False,          # shared variables in enc_layers
-            lay_width: Optional[int]=   None,           # for None matches input width
+            lay_width: int | None=   None,           # for None matches input width
             do_scaled_dns: bool=        True,
             dns_scale: int=             4,
             activation: ACT=            torch.nn.ReLU,
@@ -274,7 +273,7 @@ class LayBlockCNN(torch.nn.Module):
     def forward(
             self,
             inp: TNS,
-            history: Optional[TNS]= None,  # history must be given for casual mode
+            history: TNS | None= None,  # history must be given for casual mode
     ) -> DTNS:
 
         inp_orig_shape = inp.shape
@@ -367,7 +366,7 @@ class EncCNN(torch.nn.Module):
             n_layers :int=              6,              # num of layers
             padded=                     True,           # if not padded reduces sequence length
             kernel_size :int=           3,              # layer kernel
-            n_filters :Optional[int]=   None,           # num of filters, for None uses in_features
+            n_filters :int | None=   None,           # num of filters, for None uses in_features
             activation: ACT=            torch.nn.ReLU,  # global enc activation func
             lay_dropout: float=         0.0,
             res_dropout: float=         0.0,
@@ -436,7 +435,7 @@ class EncCNN(torch.nn.Module):
     def forward(
             self,
             inp: TNS,
-            history: Optional[TNS]= None, # history must be given for casual mode
+            history: TNS | None= None, # history must be given for casual mode
     ) -> DTNS:
 
         inp_orig_shape = inp.shape
@@ -559,9 +558,9 @@ class LayBlockTNS(torch.nn.Module):
     def forward(
             self,
             inp: TNS,
-            task_query: Optional[TNS]=              None,           # forces task-attention mode (TAT)
-            inp_mask: Optional[TNS]=                None,
-            inp_key_padding_mask: Optional[TNS]=    None) -> DTNS:
+            task_query: TNS | None=              None,           # forces task-attention mode (TAT)
+            inp_mask: TNS | None=                None,
+            inp_key_padding_mask: TNS | None=    None) -> DTNS:
 
         x = inp
 
@@ -596,8 +595,8 @@ class EncTNS(torch.nn.Module):
             num_layers: int=                        6,
             num_layers_TAT: int=                    0,
             initial_TAT_avg: bool=                  True,   # how to prepare first block TAT task_query
-            shared_lays: Optional[Tuple[int,...]]=  None,   # tuple defines layers groups with shared variables, e.g.: (2,2,2)
-            max_seq_len: Optional[int]=             None,   # when given (int) adds positional embeddings (PE) to seq
+            shared_lays: tuple[int, ...] | None = None,
+            max_seq_len: int | None=             None,   # when given (int) adds positional embeddings (PE) to seq
             # block params
             d_model: int=                           512,
             nhead: int=                             8,
@@ -659,7 +658,7 @@ class EncTNS(torch.nn.Module):
 
         self.norm = torch.nn.LayerNorm(normalized_shape=self.d_model)
 
-    def _encode(self, inp:TNS, mask:Optional[TNS]=None) -> DTNS:
+    def _encode(self, inp:TNS, mask:TNS | None=None) -> DTNS:
         """ base Transformer encoding """
 
         output = inp
@@ -716,7 +715,7 @@ class EncTNS(torch.nn.Module):
             'out':      output,
             'zeroes':   zsL}
 
-    def _encode_pyramidal(self, inp:TNS, pyramide: Union[Tuple[int],int]) -> DTNS:
+    def _encode_pyramidal(self, inp: TNS, pyramide: tuple[int, ...] | int) -> DTNS:
         """ pyramidal_encoding """
 
         if type(pyramide) is int: pyramide = (pyramide,)
@@ -737,8 +736,8 @@ class EncTNS(torch.nn.Module):
     def forward(
             self,
             inp: TNS,
-            mask: Optional[TNS]=                        None,
-            pyramide: Optional[Union[Tuple[int],int]]=  None) -> DTNS:
+            mask: TNS | None=                        None,
+            pyramide: tuple[int, ...] | int | None = None) -> DTNS:
 
         inp_orig_shape = inp.shape
 

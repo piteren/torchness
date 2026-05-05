@@ -1,5 +1,4 @@
 from torch.utils.tensorboard import SummaryWriter
-from typing import Optional
 
 
 
@@ -31,7 +30,7 @@ class TBwr:
     def add(self,
             value,
             tag: str,
-            step: Optional[int]=    None):
+            step: int | None=    None):
         if not self.sw:
             self.sw = self._get_sw()
         if step is None:
@@ -45,7 +44,7 @@ class TBwr:
             self,
             values,
             tag: str,
-            step: Optional[int]=    None,
+            step: int | None=    None,
             bins=                   "tensorflow"):
         if not self.sw:
             self.sw = self._get_sw()
@@ -61,7 +60,7 @@ class TBwr:
             self,
             text: str,
             tag: str,
-            step: Optional[int]=    None,
+            step: int | None=    None,
     ):
         if not self.sw:
             self.sw = self._get_sw()
