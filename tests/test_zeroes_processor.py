@@ -1,20 +1,26 @@
 import random
-import torch
-import unittest
+from pathlib import Path
 
-from tests.envy import flush_tmp_dir
+import pytest
+import torch
+from pypaq.lipytools.files import prep_folder
 
 from torchness.base import TNS
-from torchness.zeroes_processor import ZeroesProcessor
 from torchness.tbwr import TBwr
+from torchness.zeroes_processor import ZeroesProcessor
 
-BASE_DIR = f'{flush_tmp_dir()}/comoneural/zeroes'
+TMP_DIR = Path(__file__).parent / '_tmp_zeroes_processor'
 
-# returns tensor of 0 with randomly set N elements to 1
+
+@pytest.fixture(autouse=True)
+def tmp_dir():
+    prep_folder(TMP_DIR, flush_non_empty=True)
+
+
 def get_vector(
-        width: int=      10,
-        n: int=          1,
-        rand_one: float= 0.01
+        width: int = 10,
+        n: int = 1,
+        rand_one: float = 0.01,
 ) -> TNS:
     v = torch.zeros(width).to(int)
     for _ in range(n):
@@ -23,26 +29,17 @@ def get_vector(
     return v
 
 
-class TestZeroesProcessor(unittest.TestCase):
+def test_base():
+    zepro = ZeroesProcessor(
+        intervals=  (10, 50, 100),
+        tbwr=       TBwr(logdir=str(TMP_DIR)))
 
-    def setUp(self) -> None:
-        flush_tmp_dir()
+    for _ in range(10000):
+        v = get_vector(width=10, n=2, rand_one=0.1)
+        if random.random() < 0.95: v[0] = 1
+        if random.random() < 0.95: v[1] = 1
+        if random.random() < 0.95: v[2] = 1
 
-    def test_base(self):
-
-        zepro = ZeroesProcessor(
-            intervals=  (10, 50, 100),
-            tbwr=       TBwr(logdir=BASE_DIR))
-
-        for _ in range(10000):
-
-            v = get_vector(width=10, n=2, rand_one=0.1)
-
-            # very often change fixed positions to 1
-            if random.random() < 0.95: v[0] = 1
-            if random.random() < 0.95: v[1] = 1
-            if random.random() < 0.95: v[2] = 1
-
-            nane = zepro.process(zeroes=v)
-            if 100 in nane:
-                print(nane)
+        nane = zepro.process(zeroes=v)
+        if 100 in nane:
+            print(nane)

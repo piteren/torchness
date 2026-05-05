@@ -267,7 +267,7 @@ class FilesBatcher(BaseBatcher):
 
     def __init__(
             self,
-            data_files_fp: list[str],
+            data_TR_chunk_fp: list[str],
             chunk_builder: Callable,
             loglevel: int = 20,
             **kwargs,
@@ -280,10 +280,10 @@ class FilesBatcher(BaseBatcher):
 
         self.logger = self.get_logger(level=loglevel)
 
-        self._data_files_fp = data_files_fp
+        self._data_TR_chunk_fp = data_TR_chunk_fp
 
         self._chunk_builder = chunk_builder
-        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_files_fp)} files')
+        self.logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} files')
 
         self._data_chunks = []
         self.q_to_loader = queue.Queue()
@@ -308,8 +308,8 @@ class FilesBatcher(BaseBatcher):
 
                 stime = time.time()
 
-                file = self._data_files_fp.pop(0)
-                self._data_files_fp.append(file)
+                file = self._data_TR_chunk_fp.pop(0)
+                self._data_TR_chunk_fp.append(file)
 
                 self.logger.debug(f'>> loader starts loading file: {file} ..')
                 _data = self._chunk_builder(file=file)

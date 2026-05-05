@@ -1,3 +1,4 @@
+import numpy as np
 from pypaq.pytypes import ARR
 import torch
 from collections.abc import Callable, Sequence
