@@ -1,11 +1,12 @@
 import logging
-from pypaq.lipytools.pylogger import Logged
 import torch
 
 from torchness.tools import count_model_params
 
+logger = logging.getLogger(__name__)
 
-class NNModule(torch.nn.Module, Logged):
+
+class NNModule(torch.nn.Module):
     """ Wraps torch.nn.Module with some additional tools.
     It is a much simpler version  of NN management class than MOTorch, useful in smaller projects.
 
@@ -53,23 +54,21 @@ class NNModule(torch.nn.Module, Logged):
             self,
             seed = 123,
             device = 'cuda',
-            loglevel: int = 20,
             kwargs_not_used: dict | None = None,
             **params):
 
         super().__init__()
 
-        self.logger = self.get_logger(level=loglevel)
-        self.logger.info(f'*** NNModule ({self.__class__.__name__}) *** initializes ..')
+        logger.info(f'*** NNModule ({self.__class__.__name__}) *** initializes ..')
 
         self.params = params
         self.params['seed'] = seed
         self.device = device
 
         for p, pv in self.params.items():
-            self.logger.info(f'> {p:20}: {pv}')
+            logger.info(f'> {p:20}: {pv}')
         if kwargs_not_used:
-            self.logger.info(f'>> kwargs_not_used: {kwargs_not_used}')
+            logger.info(f'>> kwargs_not_used: {kwargs_not_used}')
 
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
@@ -88,7 +87,7 @@ class NNModule(torch.nn.Module, Logged):
     def disable_grad(self, pattern: str):
         for n, p in self.named_parameters():
             if pattern in n:
-                self.logger.debug(f'disabled grad for {n}')
+                logger.debug(f'disabled grad for {n}')
                 p.requires_grad = False
 
     def trainable_parameters(self):

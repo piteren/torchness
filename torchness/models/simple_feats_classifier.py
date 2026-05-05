@@ -1,3 +1,4 @@
+import logging
 import torch
 
 from torchness.motorch import Module
@@ -5,6 +6,9 @@ from torchness.base import INI, TNS, DTNS
 from torchness.initialize import my_initializer
 from torchness.layers import LayDense
 from torchness.encoders import EncDRT
+from torchness.tools import accuracy, f1
+
+logger = logging.getLogger(__name__)
 
 
 class SFeatsCSF(Module):
@@ -27,7 +31,7 @@ class SFeatsCSF(Module):
 
         super().__init__(**kwargs)
 
-        self.logger.info(f'*** SFeatsCSF (Module) *** inits for feats of width {feats_width}')
+        logger.info(f'*** SFeatsCSF (Module) *** inits for feats of width {feats_width}')
 
         if initializer is None:
             initializer = my_initializer
@@ -79,10 +83,8 @@ class SFeatsCSF(Module):
             target=     labels,
             weight=     self.class_weights,
             reduction=  'mean')
-        acc = self.accuracy(logits=logits, labels=labels)
-        f1 = self.f1(logits=logits, labels=labels)
         out.update({
             'loss': loss,
-            'acc':  acc,
-            'f1':   f1})
+            'acc':  accuracy(logits=logits, pred=None, target=labels),
+            'f1':   f1(logits=logits, pred=None, target=labels)})
         return out

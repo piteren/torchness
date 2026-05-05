@@ -1,7 +1,10 @@
+import logging
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from torchness.motorch import MOTorch, Module
+
+logger = logging.getLogger(__name__)
 
 
 class TextEMB(Module):
@@ -18,7 +21,7 @@ class TextEMB(Module):
         self.st_name = st_name
         self.st_model = SentenceTransformer(model_name_or_path=st_name)
         self.enc_batch_size = enc_batch_size
-        self.logger.info(f'*** TextEMB : {self.st_name} *** initialized, feats width:{self.width} seq length:{self.length}')
+        logger.info(f'*** TextEMB : {self.st_name} *** initialized, feats width:{self.width} seq length:{self.length}')
 
     def tokenize(self, texts:str | list[str]) -> list[str] | list[list[str]]:
         tokenizer = self.st_model.tokenizer
@@ -54,21 +57,21 @@ class TextEMB_MOTorch(MOTorch):
     def __init__(self, module_type: type[TextEMB] = TextEMB, **kwargs):
         super().__init__(module_type=module_type, **kwargs)
 
-    def get_tokens(self, lines:Union[str, List[str]]) -> list[str] | list[list[str]]:
-        self.logger.info(f'{self.name} prepares tokens for {len(lines)} lines ..')
+    def get_tokens(self, lines: str | list[str]) -> list[str] | list[list[str]]:
+        logger.info(f'{self.name} prepares tokens for {len(lines)} lines ..')
         return self.module.tokenize(lines)
 
     def get_embeddings(
             self,
-            lines: Union[str, List[str]],
+            lines: str | list[str],
             show_progress_bar=  'auto') -> np.ndarray:
 
         if show_progress_bar == 'auto':
             show_progress_bar = False
-            if self.logger.level < 21 and type(lines) is list and len(lines) > 1000:
+            if logger.level < 21 and type(lines) is list and len(lines) > 1000:
                 show_progress_bar = True
 
-        self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines ..')
+        logger.info(f'{self.name} prepares embeddings for {len(lines)} lines ..')
         return self.module.encode(
             texts=              lines,
             device=             self.device, # fixes bug of SentenceTransformers.encode() device placement

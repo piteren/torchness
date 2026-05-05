@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import pytest
 import torch
 from pypaq.lipytools.files import prep_folder
@@ -35,7 +34,6 @@ class LinModel(Module):
         self.in_drop_lay = torch.nn.Dropout(p=in_drop) if in_drop > 0 else None
         self.lin = LayDense(in_features=in_shape, out_features=out_shape)
         self.loss_func = loss_func
-        self.logger.debug('LinModel initialized!')
 
     def forward(self, inp) -> dict:
         if self.in_drop_lay is not None: inp = self.in_drop_lay(inp)

@@ -132,8 +132,7 @@ def test_FilesBatcher():
     fb = FilesBatcher(
         data_TR_chunk_fp=   get_files(str(DATA_DIR)),
         chunk_builder=      chunk_builder,
-        batch_size=         batch_size,
-        loglevel=           10)
+        batch_size=         batch_size)
 
     ys = []
     for _ in range(int(n_files * nf_samples / batch_size * n_epochs)):
@@ -163,8 +162,7 @@ def test_FilesBatcherMP():
         data_TS_chunk_fp=       None,
         chunk_processor_class=  CB,
         n_workers=              10,
-        batch_size=             batch_size,
-        loglevel=               10)
+        batch_size=             batch_size)
 
     ys = []
     for _ in range(int(n_files * nf_samples / batch_size * n_epochs)):

@@ -1,3 +1,4 @@
+import logging
 import math
 import numpy as np
 from tqdm import tqdm
@@ -6,6 +7,8 @@ from torchness.base import INI, TNS, DTNS
 from torchness.motorch import Module, MOTorch
 from torchness.models.text_embbeder import TextEMB
 from torchness.models.simple_feats_classifier import SFeatsCSF
+
+logger = logging.getLogger(__name__)
 
 
 class STextCSF(Module):
@@ -81,9 +84,9 @@ class STextCSF_MOTorch(MOTorch):
             show_progress_bar=      'auto',
     ) -> np.ndarray:
         if type(lines) is str: lines = [lines]
-        self.logger.info(f'{self.name} prepares embeddings for {len(lines)} lines ..')
+        logger.info(f'{self.name} prepares embeddings for {len(lines)} lines ..')
         if show_progress_bar == 'auto':
-            show_progress_bar = self.logger.level < 21 and len(lines) > 1000
+            show_progress_bar = logger.level < 21 and len(lines) > 1000
         return self.module.encode(
             texts=              lines,
             show_progress_bar=  show_progress_bar,
@@ -96,10 +99,10 @@ class STextCSF_MOTorch(MOTorch):
         num_splits = math.ceil(embs.shape[0] / self['fwd_batch_size']) # INFO: gives +- batch_size
         featsL = np.array_split(embs,num_splits)
 
-        self.logger.info(f'{self.name} computes probs for {len(featsL)} batches of embeddings')
-        iter = tqdm(featsL) if self.logger.level < 21 else featsL
+        logger.info(f'{self.name} computes probs for {len(featsL)} batches of embeddings')
+        iter = tqdm(featsL) if logger.level < 21 else featsL
         probs = np.concatenate([self(feats)['probs'].detach().cpu().numpy() for feats in iter])
-        self.logger.info(f'> got probs {probs.shape}')
+        logger.info(f'> got probs {probs.shape}')
 
         return probs
 
