@@ -109,14 +109,15 @@ class BaseBatcher(ABC):
         ) if self._data_TS else 0
         self._TS_batches = {}
 
-        logger.info(f'*** {self.__class__.__name__} *** initialized, batch size: {batch_size}')
+        logger.info(f'*** {self.__class__.__name__} *** initialized')
+        logger.info(f'> batch size: {batch_size}')
         logger.info(f'> data_TR_len: {self._data_TR_len} - loaded (first?) chunk')
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
             logger.info(f'> data_TS names: {list(self._data_TS.keys())}')
         logger.info(f'> data_TS_len: {self._data_TS_len}')
-        logger.debug('> Batcher (batch) keys:')
+        logger.info('batch keys:')
         for k in self._keys:
-            logger.debug(f'>> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
+            logger.info(f'> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
 
     @abstractmethod
     def load_data_TR_chunk(self) -> DATNS:
@@ -365,8 +366,10 @@ class FilesBatcherMP(BaseBatcher):
 
         n_test_files = 0 if not data_TS_chunk_fp else (1 if type(data_TS_chunk_fp) is str else len(data_TS_chunk_fp))
         self._data_TR_chunk_fp = data_TR_chunk_fp
-        logger.info(f'*** {self.__class__.__name__} *** initializes with {len(self._data_TR_chunk_fp)} TR files, '
-                    f'{n_test_files} TS files, n_workers:{n_workers}')
+        logger.info(f'*** {self.__class__.__name__} *** inits ..')
+        logger.info(f'> TR files: {len(self._data_TR_chunk_fp)}')
+        logger.info(f'> TS files: {n_test_files}')
+        logger.info(f'> n_workers: {n_workers}')
         self.static_data: bool | list = n_workers >= len(self._data_TR_chunk_fp)
         if self.static_data:
             if n_workers > len(self._data_TR_chunk_fp):
