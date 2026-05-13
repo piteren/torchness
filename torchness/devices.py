@@ -40,10 +40,11 @@ devices: DevicesTorchness - parameter type
 DevicesTorchness = int | None | float | str | torch.device | list[int | None | float | str | torch.device]
 
 
-def get_cuda_mem():
-    """ returns cuda memory size (system first device) """
+def get_cuda_mem() -> int:
+    """ returns cuda memory size
+    int GB, first system device"""
     devs = GPUtil.getGPUs()
-    return devs[0].memoryTotal if devs else 0
+    return round(devs[0].memoryTotal/1000) if devs else 0
 
 
 def get_available_cuda_id(
