@@ -75,6 +75,7 @@ class BaseBatcher(ABC):
             batch_size: int = 16,
             batch_size_TS_mul: int = 2,
             batching_type: str = 'random',
+            skip_cat: bool = False,
             seed: int = 123,
             timing_report: bool = False,
     ):
@@ -86,10 +87,11 @@ class BaseBatcher(ABC):
             'extend_ixmap': [],
         } if timing_report else None
 
-        self.seed_counter = seed
-        self.rng = np.random.default_rng(self.seed_counter)
+        self._seed_counter = seed
+        self._rng = np.random.default_rng(self._seed_counter)
 
-        self.btype = batching_type
+        self._batching_type = batching_type
+        self._skip_cat = skip_cat
 
         self._batch_size = batch_size
         self._batch_size_TS_mul = batch_size_TS_mul
@@ -146,15 +148,19 @@ class BaseBatcher(ABC):
         chunk_next_len = len(chunk_next[self._keys[0]])
 
         _ixmap_new = np.arange(chunk_next_len)
-        if self.btype == 'random':
-            self.rng.shuffle(_ixmap_new)
+        if self._batching_type == 'random':
+            self._rng.shuffle(_ixmap_new)
 
-        _ixmap_left = self._ixmap[self._ixmap_pointer:]
-        _ixmap_left_size = len(_ixmap_left)
-        if _ixmap_left_size:
-            for k in self._keys:
-                chunk_next[k] = cat_arrays([self._data_TR[k][_ixmap_left], chunk_next[k]])
-            _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
+        # skips time expensive part of main process
+        # leftover is always < batch_size samples, can be dropped
+        # dropping them costs nothing statistically and eliminates the full-chunk memcopy
+        if not self._skip_cat:
+            _ixmap_left = self._ixmap[self._ixmap_pointer:]
+            _ixmap_left_size = len(_ixmap_left)
+            if _ixmap_left_size:
+                for k in self._keys:
+                    chunk_next[k] = cat_arrays([self._data_TR[k][_ixmap_left], chunk_next[k]])
+                _ixmap_new = np.concatenate([np.arange(_ixmap_left_size), _ixmap_new+_ixmap_left_size])
 
         self._ixmap = _ixmap_new
         self._ixmap_pointer = 0
@@ -169,8 +175,8 @@ class BaseBatcher(ABC):
 
     def get_batch(self) -> DATNS:
 
-        self.rng = np.random.default_rng(self.seed_counter)
-        self.seed_counter += 1
+        self._rng = np.random.default_rng(self._seed_counter)
+        self._seed_counter += 1
 
         if self._ixmap_pointer + self._batch_size > len(self._ixmap):
             self._get_next_chunk_and_extend_ixmap()
