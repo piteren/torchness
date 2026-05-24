@@ -110,14 +110,15 @@ class BaseBatcher(ABC):
         self._TS_batches = {}
 
         logger.info(f'*** {self.__class__.__name__} *** initialized')
-        logger.info(f'> batch size: {batch_size}')
-        logger.info(f'> data_TR_len: {self._data_TR_len} - loaded (first?) chunk')
+        logger.info(f'> batch size TR: {batch_size}')
+        logger.info(f'> batch size TS: {batch_size} x{batch_size_TS_mul} = {batch_size * batch_size_TS_mul}')
+        logger.info(f'> data_TR_len: {self._data_TR_len:,} - loaded (first?) chunk')
         if self._data_TS and list(self._data_TS.keys()) != [self.default_TS_name]:
-            logger.info(f'> data_TS names: {list(self._data_TS.keys())}')
-        logger.info(f'> data_TS_len: {self._data_TS_len}')
+            logger.info(f'> data_TS names: {" ".join(list(self._data_TS.keys()))}')
+        logger.info(f'> data_TS_len: {self._data_TS_len:,}')
         logger.info('batch keys:')
         for k in self._keys:
-            logger.info(f'> {k}, shape: {self._data_TR[k].shape}, type:{type(self._data_TR[k][0])}')
+            logger.info(f'> {k:15} {self._data_TR[k].shape} {type(self._data_TR[k][0])}')
 
     @abstractmethod
     def load_data_TR_chunk(self) -> DATNS:
