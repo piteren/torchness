@@ -43,11 +43,12 @@ def count_model_params(model:torch.nn.Module) -> int:
 
 def inspect_params(
         module: torch.nn.Module,
-        inspect_name: str,
-        detailed: bool=             False, # every param separately
-        save_dir: str | None=    None,
+        inspect_name: str = 'inspect',
+        detailed: bool = False,
+        save_dir: str | None = None,
 ) -> str:
-    """ inspects params and gradients """
+    """inspects params and gradients
+    detailed: when true - prints every param separately"""
 
     def vec_nfo(name:str, vec:torch.Tensor) -> str:
         arr = vec.detach().view(-1).cpu().numpy()
@@ -82,7 +83,15 @@ def inspect_params(
     return '\n'.join(nfo)
 
 
-### scores *****************************************************************************************
+def inspect_module(module: torch.nn.Module) -> str:
+    s = " +  requires grad - not\n"
+    for name, p in module.named_parameters():
+        r = "+" if p.requires_grad else "-"
+        s += f" {r} {name:60} shape={str(tuple(p.shape)):20} -> {f"{p.numel():12,}"}\n"
+    return s[:-1]
+
+
+    ### scores *****************************************************************************************
 
 def cross_entropy_loss(logits:TNS, target:TNS) -> TNS:
     """ cross-entropy loss for:
