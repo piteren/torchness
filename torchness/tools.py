@@ -83,11 +83,23 @@ def inspect_params(
     return '\n'.join(nfo)
 
 
-def inspect_module(module: torch.nn.Module) -> str:
-    s = " +  requires grad - not\n"
-    for name, p in module.named_parameters():
-        r = "+" if p.requires_grad else "-"
-        s += f" {r} {name:60} shape={str(tuple(p.shape)):20} -> {f"{p.numel():12,}"}\n"
+def inspect_module(
+        module: torch.nn.Module,
+        extended: bool = True,
+) -> str:
+
+    total_params = sum(p.numel() for p in module.parameters())
+    trainable_params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    s = "model parameters:\n"
+    s += f">     total params: {total_params:>10,}\n"
+    s += f"> trainable params: {trainable_params:>10,}\n"
+
+    if extended:
+        s += "model layers:\n +  requires grad - not\n"
+        for name, p in module.named_parameters():
+            r = "+" if p.requires_grad else "-"
+            s += f" {r} {name:60} shape={str(tuple(p.shape)):20} -> {f"{p.numel():12,}"}\n"
+
     return s[:-1]
 
 
