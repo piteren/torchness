@@ -349,7 +349,6 @@ class FilesBatcherMP(BaseBatcher):
             chunk_processor_class: type[RunningWorker],
             rww_init_kwargs: dict | None = None,
             n_workers: int = 5,
-            ordered_results: bool = True,
             raise_rww_exception: bool = False,
             **kwargs,
     ):
@@ -366,10 +365,7 @@ class FilesBatcherMP(BaseBatcher):
         n_workers:
             max number of parallel MP workers that will be put into the chunk loading task,
             when average time needed by a worker to load and prepare a single chunk is greater
-            than time of running (training) this chunk with a NN, number of workers > 1
-        ordered_results:
-            allows for reproducibility of results,
-            REMEMBER to keep order of files in data_TR_chunk_fp"""
+            than time of running (training) this chunk with a NN, number of workers > 1"""
 
         n_test_files = 0 if not data_TS_chunk_fp else (1 if type(data_TS_chunk_fp) is str else len(data_TS_chunk_fp))
         self._data_TR_chunk_fp = data_TR_chunk_fp
@@ -387,7 +383,7 @@ class FilesBatcherMP(BaseBatcher):
             rww_class=              chunk_processor_class,
             rww_init_kwargs=        rww_init_kwargs,
             devices=                [None] * n_workers,
-            ordered_results=        ordered_results,
+            ordered_results=        True, # False not allowed here because of possible shuffle TS and TR files
             rerun_crashed=          False,
             raise_rww_exception=    raise_rww_exception,
         )
