@@ -19,7 +19,6 @@ class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
             anneal_base: float = 0.999,
             anneal_mul: float = 1.0,
             last_epoch = -1,
-            loglevel: int = 20,
     ):
         self._step = step
         self.w_end = warmup_end
