@@ -53,3 +53,38 @@ class ScaledLR(torch.optim.lr_scheduler.LRScheduler):
     def step(self, epoch: int | None = None):
         super(ScaledLR, self).step(epoch)
         self._step += 1
+
+
+if __name__ == '__main__':
+
+    from pypaq.lipytools.plots import two_dim_multi
+    from torchness.layers import LayDense
+
+    lay = LayDense(2, 2)
+    optimizer = torch.optim.AdamW(params=lay.parameters(), lr=1e-4)
+
+    rng = 1_000_000
+    xs = list(range(rng))
+    names = []
+    lrs = []
+    for ab in [
+        0.999,
+        0.9999,
+        0.99999,
+    ]:
+
+        scaler = ScaledLR(
+            optimizer=optimizer,
+            anneal_base=ab,
+        )
+        names.append(f'anneal_base: {ab}')
+
+        _lrs = []
+        for x in range(rng):
+            _lrs.append(scaler.get_lr()[0])
+            scaler.step()
+        lrs.append(_lrs)
+
+    two_dim_multi(ys=lrs, names=names, ylogscale=True)
+    for _lrs,name in zip(lrs, names):
+        print(f"{name} final lr: {_lrs[-1]}")

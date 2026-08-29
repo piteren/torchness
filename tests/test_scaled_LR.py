@@ -7,7 +7,7 @@ from torchness.layers import LayDense
 def test_base():
     lay = LayDense(2, 2)
     optimizer = torch.optim.AdamW(params=lay.parameters(), lr=1e-4)
-    scaler = ScaledLR(optimizer=optimizer, loglevel=10)
+    scaler = ScaledLR(optimizer=optimizer)
     lr = scaler.get_lr()[0]
     print(lr)
     optimizer.step()
